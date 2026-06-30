@@ -1,0 +1,84 @@
+"""Request/response schemas for the API.
+
+`GenerateRequest` is the JSON body for `POST /api/generate`; `GenerateResponse`
+is what comes back. `AdVariation` is a single generated ad.
+"""
+
+from __future__ import annotations
+
+from enum import Enum
+
+from pydantic import BaseModel, Field
+
+
+class Platform(str, Enum):
+    facebook = "facebook"
+    instagram = "instagram"
+    google_search = "google_search"
+    google_display = "google_display"
+    linkedin = "linkedin"
+
+    @property
+    def label(self) -> str:
+        return {
+            Platform.facebook: "Facebook",
+            Platform.instagram: "Instagram",
+            Platform.google_search: "Google Search",
+            Platform.google_display: "Google Display",
+            Platform.linkedin: "LinkedIn",
+        }[self]
+
+
+class Goal(str, Enum):
+    awareness = "awareness"
+    traffic = "traffic"
+    leads = "leads"
+    sales = "sales"
+    engagement = "engagement"
+
+    @property
+    def label(self) -> str:
+        return {
+            Goal.awareness: "Brand awareness",
+            Goal.traffic: "Website traffic",
+            Goal.leads: "Lead generation",
+            Goal.sales: "Sales / conversions",
+            Goal.engagement: "Engagement",
+        }[self]
+
+
+class GenerateRequest(BaseModel):
+    brand: str = Field(..., description="Brand profile id (see GET /api/brands)")
+    platform: Platform = Field(..., description="Target ad platform")
+    product: str = Field(
+        ...,
+        min_length=3,
+        max_length=2000,
+        description="The product, offer, or angle to advertise",
+    )
+    audience: str | None = Field(
+        None,
+        max_length=500,
+        description="Override the brand's default audience for this campaign",
+    )
+    goal: Goal = Field(Goal.leads, description="Campaign objective")
+    tone: str | None = Field(
+        None, max_length=200, description="Optional tone override, e.g. 'playful'"
+    )
+    count: int = Field(4, ge=1, le=6, description="How many variations to generate")
+
+
+class AdVariation(BaseModel):
+    headline: str
+    primary_text: str
+    description: str
+    call_to_action: str
+    visual_concept: str
+    hashtags: list[str]
+    rationale: str
+
+
+class GenerateResponse(BaseModel):
+    brand: str
+    platform: Platform
+    variations: list[AdVariation]
