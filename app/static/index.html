@@ -52,7 +52,6 @@
       top: 16px;
     }
     label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
-    label:first-child { margin-top: 0; }
     input, select, textarea {
       width: 100%;
       background: var(--panel-2);
@@ -64,6 +63,7 @@
       font-family: inherit;
     }
     textarea { resize: vertical; min-height: 84px; }
+    textarea#product { min-height: 84px; }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     button {
@@ -81,9 +81,23 @@
     button:hover { background: var(--accent); }
     button:disabled { opacity: .6; cursor: not-allowed; }
     .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .tabs { display: flex; gap: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 4px; margin-bottom: 16px; }
+    .tab {
+      flex: 1; margin: 0; background: transparent; color: var(--muted);
+      padding: 8px; font-size: 13px; font-weight: 600; border-radius: 6px;
+    }
+    .tab:hover { background: transparent; color: var(--text); }
+    .tab.active { background: var(--accent-2); color: #051018; }
     .results { min-height: 200px; }
+    .results-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .results-head h2 { font-size: 16px; margin: 0; }
+    .export-btn { margin: 0; width: auto; padding: 8px 16px; font-size: 13px; background: var(--good); }
+    .export-btn:hover { background: #2bb88a; }
     .status { color: var(--muted); padding: 24px 4px; }
     .status.error { color: var(--bad); }
+    .group-head { margin: 22px 0 10px; font-size: 14px; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+    .group-head:first-child { margin-top: 0; }
+    .group-error { color: var(--bad); font-size: 13px; padding: 4px 0 8px; }
     .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 1100px) { .cards { grid-template-columns: 1fr; } }
     .card {
@@ -119,6 +133,11 @@
         No <code>ANTHROPIC_API_KEY</code> configured. Add one to <code>.env</code> and restart.
       </div>
 
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" data-mode="single">Single offer</button>
+        <button type="button" class="tab" data-mode="bulk">Bulk (many offers)</button>
+      </div>
+
       <label for="brand">Brand</label>
       <select id="brand" name="brand"></select>
 
@@ -131,8 +150,9 @@
         <option value="linkedin">LinkedIn</option>
       </select>
 
-      <label for="product">Product / offer / angle</label>
+      <label for="product" id="productLabel">Product / offer / angle</label>
       <textarea id="product" name="product" placeholder="e.g. Summer install special on the 20ft container pool with the acrylic window."></textarea>
+      <div class="hint" id="bulkHint" style="display:none">One offer per line — each line becomes its own set of ads. Up to 25 per batch.</div>
 
       <label for="audience">Audience <span class="hint">(optional — overrides the brand default)</span></label>
       <input id="audience" name="audience" placeholder="Leave blank to use the brand default" />
@@ -163,13 +183,19 @@
     </form>
 
     <div class="results">
+      <div class="results-head">
+        <h2 id="resultsTitle"></h2>
+        <button type="button" id="exportBtn" class="export-btn" style="display:none">Download CSV</button>
+      </div>
       <div id="status" class="status">Fill in the brief and click <strong>Generate ads</strong>.</div>
-      <div id="cards" class="cards"></div>
+      <div id="cards"></div>
     </div>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
+    let mode = "single";
+    let lastRows = []; // flattened rows for CSV export
 
     async function loadBrands() {
       try {
@@ -199,7 +225,20 @@
         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
-    function renderCard(v, i) {
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll(".tab").forEach((t) =>
+        t.classList.toggle("active", t.dataset.mode === next));
+      const bulk = next === "bulk";
+      $("productLabel").textContent = bulk ? "Offers (one per line)" : "Product / offer / angle";
+      $("bulkHint").style.display = bulk ? "block" : "none";
+      $("product").placeholder = bulk
+        ? "20ft container pool summer install special\nAcrylic-window pool upgrade\nMove-in-ready backyard pool, installed in a day"
+        : "e.g. Summer install special on the 20ft container pool with the acrylic window.";
+      $("submit").textContent = bulk ? "Generate all" : "Generate ads";
+    }
+
+    function variationCard(v, i) {
       const tags = (v.hashtags || []).map((t) =>
         `<span class="tag">${escapeHtml(t.startsWith("#") ? t : "#" + t)}</span>`).join("");
       const copyText = [
@@ -233,25 +272,111 @@
       return card;
     }
 
+    function pushRows(meta, offer, variations) {
+      variations.forEach((v, i) => {
+        lastRows.push({
+          brand: meta.brand, platform: meta.platform, offer,
+          variation: i + 1,
+          headline: v.headline, primary_text: v.primary_text, description: v.description,
+          call_to_action: v.call_to_action, hashtags: (v.hashtags || []).join(" "),
+          visual_concept: v.visual_concept, rationale: v.rationale,
+        });
+      });
+    }
+
+    function csvCell(s) {
+      const v = String(s ?? "");
+      return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }
+
+    function downloadCsv() {
+      if (!lastRows.length) return;
+      const cols = ["brand","platform","offer","variation","headline","primary_text",
+        "description","call_to_action","hashtags","visual_concept","rationale"];
+      const lines = [cols.join(",")];
+      for (const r of lastRows) lines.push(cols.map((c) => csvCell(r[c])).join(","));
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `modpools-ads-${stamp}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function runSingle(body, status, cards) {
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Generation failed.");
+      status.textContent = "";
+      data.variations.forEach((v, i) => cards.appendChild(variationCard(v, i)));
+      if (!data.variations.length) status.textContent = "No variations returned. Try again.";
+      pushRows({ brand: data.brand, platform: data.platform }, body.product, data.variations);
+    }
+
+    async function runBulk(body, offers, status, cards) {
+      const res = await fetch("/api/generate/bulk", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, products: offers }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Generation failed.");
+      status.textContent = "";
+      let total = 0;
+      for (const item of data.items) {
+        const head = document.createElement("div");
+        head.className = "group-head";
+        head.textContent = item.product;
+        cards.appendChild(head);
+        if (item.error) {
+          const err = document.createElement("div");
+          err.className = "group-error";
+          err.textContent = "⚠ " + item.error;
+          cards.appendChild(err);
+          continue;
+        }
+        const grid = document.createElement("div");
+        grid.className = "cards";
+        item.variations.forEach((v, i) => grid.appendChild(variationCard(v, i)));
+        cards.appendChild(grid);
+        pushRows({ brand: data.brand, platform: data.platform }, item.product, item.variations);
+        total += item.variations.length;
+      }
+      if (!total) status.textContent = "No variations were generated. Check your offers and try again.";
+    }
+
+    document.querySelectorAll(".tab").forEach((t) =>
+      t.addEventListener("click", () => setMode(t.dataset.mode)));
+
+    $("exportBtn").addEventListener("click", downloadCsv);
+
     $("brief").addEventListener("submit", async (e) => {
       e.preventDefault();
       const status = $("status");
       const cards = $("cards");
       const submit = $("submit");
       cards.innerHTML = "";
+      lastRows = [];
+      $("exportBtn").style.display = "none";
+      $("resultsTitle").textContent = "";
       status.className = "status";
 
-      const product = $("product").value.trim();
-      if (product.length < 3) {
+      const raw = $("product").value.trim();
+      if (raw.length < 3) {
         status.className = "status error";
-        status.textContent = "Please describe the product or offer (at least a few words).";
+        status.textContent = mode === "bulk"
+          ? "Add at least one offer (one per line)."
+          : "Please describe the product or offer (at least a few words).";
         return;
       }
 
-      const body = {
+      const base = {
         brand: $("brand").value,
         platform: $("platform").value,
-        product,
         audience: $("audience").value.trim() || null,
         goal: $("goal").value,
         tone: $("tone").value.trim() || null,
@@ -259,19 +384,20 @@
       };
 
       submit.disabled = true;
-      status.innerHTML = '<span class="spinner"></span>Generating on-brand variations…';
 
       try {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || "Generation failed.");
-        status.textContent = "";
-        data.variations.forEach((v, i) => cards.appendChild(renderCard(v, i)));
-        if (!data.variations.length) status.textContent = "No variations returned. Try again.";
+        if (mode === "bulk") {
+          const offers = raw.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 25);
+          status.innerHTML = `<span class="spinner"></span>Generating ads for ${offers.length} offer(s)… this can take a moment.`;
+          await runBulk(base, offers, status, cards);
+        } else {
+          status.innerHTML = '<span class="spinner"></span>Generating on-brand variations…';
+          await runSingle({ ...base, product: raw }, status, cards);
+        }
+        if (lastRows.length) {
+          $("resultsTitle").textContent = `${lastRows.length} ad(s) ready to review`;
+          $("exportBtn").style.display = "inline-block";
+        }
       } catch (err) {
         status.className = "status error";
         status.textContent = err.message || "Something went wrong.";
@@ -282,6 +408,7 @@
 
     loadBrands();
     checkHealth();
+    setMode("single");
   </script>
 </body>
 </html>

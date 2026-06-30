@@ -8,12 +8,25 @@ outputs so the response is guaranteed-parseable JSON, and returns typed
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import anthropic
 
 from .brands import BrandProfile, get_brand
 from .config import get_settings
-from .models import AdVariation, GenerateRequest, GenerateResponse, Platform
+from .models import (
+    AdVariation,
+    BulkGenerateRequest,
+    BulkGenerateResponse,
+    BulkResultItem,
+    GenerateRequest,
+    GenerateResponse,
+    Platform,
+)
+
+# How many offers to generate at once. Small enough to stay well under API rate
+# limits; the SDK retries 429s automatically on top of this.
+_BULK_CONCURRENCY = 4
 
 # Per-channel norms the model should respect. Keep these short — they're hints,
 # not hard limits the model has to count characters against.
@@ -176,3 +189,47 @@ def generate_ads(req: GenerateRequest) -> GenerateResponse:
     return GenerateResponse(
         brand=brand.id, platform=req.platform, variations=variations
     )
+
+
+def generate_bulk(req: BulkGenerateRequest) -> BulkGenerateResponse:
+    """Generate ads for every offer in `req.products`.
+
+    Offers run concurrently; one failing offer is captured as an `error` on its
+    item and does not abort the rest of the batch.
+    """
+    brand = get_brand(req.brand)
+    if brand is None:
+        raise GeneratorError(f"Unknown brand '{req.brand}'.")
+
+    # Skip blank lines, keep order, de-dupe accidental repeats.
+    seen: set[str] = set()
+    products: list[str] = []
+    for raw in req.products:
+        product = raw.strip()
+        if product and product.lower() not in seen:
+            seen.add(product.lower())
+            products.append(product)
+
+    if not products:
+        raise GeneratorError("No offers to generate. Add at least one offer line.")
+
+    def _one(product: str) -> BulkResultItem:
+        single = GenerateRequest(
+            brand=req.brand,
+            platform=req.platform,
+            product=product,
+            audience=req.audience,
+            goal=req.goal,
+            tone=req.tone,
+            count=req.count,
+        )
+        try:
+            result = generate_ads(single)
+            return BulkResultItem(product=product, variations=result.variations)
+        except GeneratorError as exc:
+            return BulkResultItem(product=product, error=str(exc))
+
+    with ThreadPoolExecutor(max_workers=_BULK_CONCURRENCY) as pool:
+        items = list(pool.map(_one, products))
+
+    return BulkGenerateResponse(brand=brand.id, platform=req.platform, items=items)

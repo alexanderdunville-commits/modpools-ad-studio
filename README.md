@@ -96,6 +96,16 @@ Each result includes a headline, primary text, description, CTA, hashtags, a
 visual concept for your designer, and a one-line rationale for the angle. Hit
 **Copy** on any card to grab it.
 
+### Single vs. bulk
+
+The UI has two modes:
+
+- **Single offer** — one brief in, several variations out.
+- **Bulk (many offers)** — paste a list of offers (one per line, up to 25), share
+  the same brand/platform/goal/tone, and generate a full batch in one click. Each
+  offer gets its own set of variations, and you can **Download CSV** to pull the
+  whole batch into a spreadsheet. One offer failing doesn't stop the rest.
+
 ---
 
 ## Project structure
@@ -121,7 +131,8 @@ app/
 |--------|----------|-------------|
 | `GET`  | `/api/health` | Status + whether the API key is configured |
 | `GET`  | `/api/brands` | Available brand profiles |
-| `POST` | `/api/generate` | Generate ad variations (JSON body — see `GenerateRequest` in `app/models.py`) |
+| `POST` | `/api/generate` | Generate ad variations for one offer (JSON body — see `GenerateRequest` in `app/models.py`) |
+| `POST` | `/api/generate/bulk` | Generate ads for many offers at once (JSON body — see `BulkGenerateRequest` in `app/models.py`) |
 
 ---
 

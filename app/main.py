@@ -12,8 +12,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .generator import GeneratorError, generate_ads
-from .models import GenerateRequest, GenerateResponse
+from .generator import GeneratorError, generate_ads, generate_bulk
+from .models import (
+    BulkGenerateRequest,
+    BulkGenerateResponse,
+    GenerateRequest,
+    GenerateResponse,
+)
 from .brands import list_brands
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -57,6 +62,20 @@ def generate(req: GenerateRequest) -> GenerateResponse:
         )
     try:
         return generate_ads(req)
+    except GeneratorError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/api/generate/bulk", response_model=BulkGenerateResponse)
+def generate_bulk_route(req: BulkGenerateRequest) -> BulkGenerateResponse:
+    settings = get_settings()
+    if not settings.api_key_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="ANTHROPIC_API_KEY is not configured. Add it to your .env file.",
+        )
+    try:
+        return generate_bulk(req)
     except GeneratorError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

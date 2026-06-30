@@ -82,3 +82,39 @@ class GenerateResponse(BaseModel):
     brand: str
     platform: Platform
     variations: list[AdVariation]
+
+
+class BulkGenerateRequest(BaseModel):
+    """Generate ads for many offers in one go.
+
+    Brand/platform/goal/tone/count apply to every offer in `products`; each
+    string in `products` is a separate offer/angle to advertise.
+    """
+
+    brand: str = Field(..., description="Brand profile id (see GET /api/brands)")
+    platform: Platform = Field(..., description="Target ad platform")
+    products: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=25,
+        description="One offer/angle per item (max 25 per batch)",
+    )
+    audience: str | None = Field(None, max_length=500)
+    goal: Goal = Field(Goal.leads)
+    tone: str | None = Field(None, max_length=200)
+    count: int = Field(3, ge=1, le=6, description="Variations per offer")
+
+
+class BulkResultItem(BaseModel):
+    """Result for a single offer in a batch. `error` is set if that offer failed
+    (the rest of the batch still succeeds)."""
+
+    product: str
+    variations: list[AdVariation] = Field(default_factory=list)
+    error: str | None = None
+
+
+class BulkGenerateResponse(BaseModel):
+    brand: str
+    platform: Platform
+    items: list[BulkResultItem]
