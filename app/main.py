@@ -1,17 +1,23 @@
 """FastAPI app + API routes; serves the web UI.
 
 Run with: uvicorn app.main:app --reload --port 8000
+
+Phase 1 of the Modpools Ad Manager adds persistence (campaigns, ads, approvals,
+audit log) and role-based access on top of the AI generator.
 """
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .brands import list_brands
 from .config import get_settings
+from .db import init_db
 from .generator import GeneratorError, generate_ads, generate_bulk
 from .models import (
     BulkGenerateRequest,
@@ -19,11 +25,18 @@ from .models import (
     GenerateRequest,
     GenerateResponse,
 )
-from .brands import list_brands
+from .routers import ads, approvals, campaigns
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="Modpools Ad Studio", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="Modpools Ad Manager", version="1.1.0", lifespan=lifespan)
 
 
 @app.get("/api/health")
@@ -80,11 +93,16 @@ def generate_bulk_route(req: BulkGenerateRequest) -> BulkGenerateResponse:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+# Ad Manager resources
+app.include_router(campaigns.router)
+app.include_router(ads.router)
+app.include_router(approvals.router)
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
-# Serve remaining static assets (the UI is a single file today, but this keeps
-# room for css/js/images later).
+# Serve remaining static assets (room for css/js/images later).
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

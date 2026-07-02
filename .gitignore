@@ -1,6 +1,10 @@
 # Environment / secrets
 .env
 
+# Local dev database
+*.db
+*.sqlite3
+
 # Python
 .venv/
 venv/

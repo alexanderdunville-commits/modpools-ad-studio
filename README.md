@@ -77,6 +77,7 @@ Set these in `.env` (see `.env.example`):
 | `ANTHROPIC_API_KEY` | Yes | — | Your Claude API key |
 | `NESTLY_MODEL` | No | `claude-opus-4-8` | Model used for generation |
 | `NESTLY_EFFORT` | No | `medium` | `low` \| `medium` \| `high` — higher means better copy, slower and pricier |
+| `DATABASE_URL` | No | `sqlite:///./modpools.db` | Ad Manager database. Use a Postgres URL in production (also `pip install psycopg[binary]`). |
 
 ---
 
@@ -113,12 +114,22 @@ The UI has two modes:
 ```
 app/
   main.py        FastAPI app + API routes, serves the web UI
-  generator.py   Phase 1 — Claude ad generation (the working core)
+  generator.py   Claude ad generation (the working core)
   brands.py      Brand profiles (edit these!)
-  models.py      Request/response schemas
-  publishing.py  Phase 2 — ad-platform publishing (stub adapters)
-  analytics.py   Phase 3 — performance analysis (stub)
+  models.py      Generator request/response schemas
+  publishing.py  Ad-platform publishing (stub adapters)
+  analytics.py   Performance analysis (stub)
   config.py      Model + settings from the environment
+  db.py          Database engine/session + startup (SQLAlchemy)
+  db_models.py   ORM models: users, campaigns, ads, approvals, audit log
+  enums.py       Status/role enums
+  auth.py        Current-user + role-based access control
+  audit.py       Audit-log helper
+  schemas.py     Ad Manager API schemas
+  routers/
+    campaigns.py Campaigns + save AI ads into a campaign
+    ads.py       Ad CRUD + submit for approval
+    approvals.py Approval queue + audit endpoint
   static/
     index.html   The web UI (single page, no build step)
 ```
@@ -133,6 +144,33 @@ app/
 | `GET`  | `/api/brands` | Available brand profiles |
 | `POST` | `/api/generate` | Generate ad variations for one offer (JSON body — see `GenerateRequest` in `app/models.py`) |
 | `POST` | `/api/generate/bulk` | Generate ads for many offers at once (JSON body — see `BulkGenerateRequest` in `app/models.py`) |
+| `POST` | `/api/campaigns` · `GET` `/api/campaigns` | Create / list campaigns |
+| `GET` `PATCH` | `/api/campaigns/{id}` | Get / update a campaign (`POST /archive` to archive) |
+| `POST` | `/api/campaigns/{id}/ads/from-generation` | Save AI-generated variations into a campaign as draft ads |
+| `POST` `GET` | `/api/ads` | Create / list ads (filter by `campaign_id`, `status`, `platform`) |
+| `GET` `PATCH` `DELETE` | `/api/ads/{id}` | Get / edit / delete an ad (`POST /submit` sends it to the approval queue) |
+| `GET` | `/api/approvals` | The pending-approval queue |
+| `POST` | `/api/ads/{id}/approve` · `/reject` · `/request-changes` | Approve, reject (reason required), or request changes |
+| `GET` | `/api/audit` | Recent audit-log entries |
+
+---
+
+## Ad Manager (Phase 1)
+
+Beyond one-off generation, the app now persists work and gates it behind review
+— the foundation of the **Modpools Ad Manager** (full plan in
+[`docs/modpools-ad-manager-product-plan.md`](docs/modpools-ad-manager-product-plan.md)).
+
+- **Campaigns** organize ads by offer, market, product size, season, and audience.
+- **Ads** are saved (from AI generation or by hand), edited, and submitted for review.
+- **Approval queue** — nothing is "approved" until an approver signs off; rejects
+  require a reason. Every action is written to an **audit log**.
+- **Roles** — `admin`, `manager`, `creator`, `approver`, `analyst`, enforced
+  server-side. In local dev, pick who you're acting as with an `X-User-Email`
+  header (e.g. `creator@modpools.local`); the default is the seeded admin.
+  Production plugs real SSO into `app/auth.py`.
+- **Storage** — SQLAlchemy; SQLite by default, Postgres via `DATABASE_URL`.
+  Tables are created on startup; the dev users are seeded automatically.
 
 ---
 

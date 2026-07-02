@@ -3,3 +3,5 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 pydantic>=2.7
 python-dotenv>=1.0
+SQLAlchemy>=2.0
+# For a Postgres DATABASE_URL in production, also install: psycopg[binary]>=3.1

@@ -20,11 +20,15 @@ DEFAULT_EFFORT = "medium"
 VALID_EFFORTS = ("low", "medium", "high")
 
 
+DEFAULT_DATABASE_URL = "sqlite:///./modpools.db"
+
+
 @dataclass(frozen=True)
 class Settings:
     anthropic_api_key: str | None
     model: str
     effort: str
+    database_url: str
 
     @property
     def api_key_configured(self) -> bool:
@@ -41,4 +45,6 @@ def get_settings() -> Settings:
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
         model=os.environ.get("NESTLY_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
         effort=effort,
+        database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL).strip()
+        or DEFAULT_DATABASE_URL,
     )
