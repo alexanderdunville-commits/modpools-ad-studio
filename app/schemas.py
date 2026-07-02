@@ -14,6 +14,7 @@ from .enums import (
     AutoPauseAction,
     AutoPauseRuleType,
     BudgetPeriod,
+    CampaignStatus,
     CapType,
     ConnectionMode,
     CreativeType,

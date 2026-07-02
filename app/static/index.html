@@ -3,412 +3,499 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Modpools Ad Studio</title>
+  <link rel="icon" href="data:," />
+  <title>Modpools Ad Manager</title>
   <style>
     :root {
-      --bg: #0f1720;
-      --panel: #16212e;
-      --panel-2: #1d2a39;
-      --line: #2a3a4d;
-      --text: #e8eef5;
-      --muted: #97a6b8;
-      --accent: #38bdf8;
-      --accent-2: #0ea5e9;
-      --good: #34d399;
-      --bad: #f87171;
-      --radius: 12px;
+      --bg: #0e1621; --panel: #16212e; --panel-2: #1d2a39; --panel-3:#233244;
+      --line: #2a3a4d; --text: #e8eef5; --muted: #93a4b7; --faint:#6b7b8d;
+      --accent: #38bdf8; --accent-2: #0ea5e9; --good: #34d399; --warn:#fbbf24;
+      --bad: #f87171; --radius: 12px;
     }
     * { box-sizing: border-box; }
+    html,body { height:100%; }
     body {
-      margin: 0;
+      margin: 0; background: var(--bg); color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
       line-height: 1.5;
     }
-    header {
-      padding: 28px 24px 12px;
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-    header h1 { margin: 0 0 4px; font-size: 26px; }
-    header p { margin: 0; color: var(--muted); }
-    .wrap {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 12px 24px 60px;
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 24px;
-    }
-    @media (max-width: 880px) { .wrap { grid-template-columns: 1fr; } }
-    form {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 20px;
-      align-self: start;
-      position: sticky;
-      top: 16px;
-    }
-    label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
-    input, select, textarea {
-      width: 100%;
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 14px;
-      font-family: inherit;
-    }
-    textarea { resize: vertical; min-height: 84px; }
-    textarea#product { min-height: 84px; }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    button {
-      margin-top: 18px;
-      width: 100%;
-      background: var(--accent-2);
-      color: #051018;
-      border: none;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button:hover { background: var(--accent); }
-    button:disabled { opacity: .6; cursor: not-allowed; }
-    .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
-    .tabs { display: flex; gap: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 4px; margin-bottom: 16px; }
-    .tab {
-      flex: 1; margin: 0; background: transparent; color: var(--muted);
-      padding: 8px; font-size: 13px; font-weight: 600; border-radius: 6px;
-    }
-    .tab:hover { background: transparent; color: var(--text); }
-    .tab.active { background: var(--accent-2); color: #051018; }
-    .results { min-height: 200px; }
-    .results-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-    .results-head h2 { font-size: 16px; margin: 0; }
-    .export-btn { margin: 0; width: auto; padding: 8px 16px; font-size: 13px; background: var(--good); }
-    .export-btn:hover { background: #2bb88a; }
-    .status { color: var(--muted); padding: 24px 4px; }
-    .status.error { color: var(--bad); }
-    .group-head { margin: 22px 0 10px; font-size: 14px; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-    .group-head:first-child { margin-top: 0; }
-    .group-error { color: var(--bad); font-size: 13px; padding: 4px 0 8px; }
-    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 1100px) { .cards { grid-template-columns: 1fr; } }
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 16px;
-    }
-    .card h3 { margin: 0 0 8px; font-size: 17px; }
-    .field { margin: 10px 0; }
-    .field .k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-    .field .v { font-size: 14px; white-space: pre-wrap; }
-    .cta { display: inline-block; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
-    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-    .tag { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--accent); }
-    .visual { font-style: italic; color: var(--muted); }
-    .rationale { font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 12px; }
-    .copy-btn { margin-top: 12px; width: auto; padding: 6px 14px; font-size: 13px; }
-    .banner { background: #3b2a12; border: 1px solid #7c5418; color: #f5d597; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #051018; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 8px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    a { color: var(--accent); }
+    .app { display: grid; grid-template-columns: 232px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
+    /* sidebar */
+    .side { grid-row: 1 / 3; background: #0b131c; border-right: 1px solid var(--line); padding: 16px 12px; overflow:auto; }
+    .brand { display:flex; align-items:center; gap:9px; padding: 4px 8px 16px; }
+    .brand .dot { width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent-2)); }
+    .brand b { font-size: 15px; letter-spacing:.2px; }
+    .navsec { color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing:.06em; margin: 14px 10px 6px; }
+    .nav { display:flex; flex-direction:column; gap:2px; }
+    .nav a { display:flex; align-items:center; gap:10px; padding: 8px 10px; border-radius: 8px; color: var(--muted); text-decoration:none; font-size:14px; cursor:pointer; }
+    .nav a:hover { background: var(--panel); color: var(--text); }
+    .nav a.active { background: var(--panel-2); color: var(--text); font-weight:600; }
+    .nav a .ic { width:16px; text-align:center; opacity:.9; }
+    .nav a .badge { margin-left:auto; background:var(--accent-2); color:#04121b; font-size:11px; font-weight:700; border-radius:999px; padding:1px 7px; }
+    /* topbar */
+    .top { grid-column: 2; display:flex; align-items:center; gap:12px; padding: 0 20px; border-bottom: 1px solid var(--line); background: var(--bg); }
+    .top .title { font-size: 16px; font-weight:600; }
+    .top .spacer { flex:1; }
+    .top select, .top button { font-family:inherit; }
+    .userpick { background: var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:13px; }
+    .iconbtn { position:relative; background: var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 10px; cursor:pointer; font-size:13px; }
+    .iconbtn:hover { border-color: var(--accent); }
+    .iconbtn .count { position:absolute; top:-6px; right:-6px; background:var(--bad); color:#fff; font-size:10px; font-weight:700; border-radius:999px; padding:1px 5px; }
+    .estop { background:#3a1414; border:1px solid #6b2020; color:#ffb4b4; font-weight:700; border-radius:8px; padding:7px 12px; cursor:pointer; }
+    .estop.on { background: var(--bad); color:#3a0d0d; }
+    /* main */
+    .main { grid-column: 2; overflow: auto; padding: 22px 24px 60px; }
+    h2.view { margin: 0 0 4px; font-size: 20px; }
+    .sub { color: var(--muted); margin: 0 0 18px; font-size:13px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .tiles { display:grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:20px; }
+    .tile { background: var(--panel); border:1px solid var(--line); border-radius: var(--radius); padding:14px 16px; }
+    .tile .k { color: var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+    .tile .v { font-size:24px; font-weight:700; margin-top:4px; }
+    .tile .v.sm { font-size:19px; }
+    .card { background: var(--panel); border:1px solid var(--line); border-radius: var(--radius); padding:16px; margin-bottom:14px; }
+    .cardgrid { display:grid; grid-template-columns: repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+    table { width:100%; border-collapse: collapse; font-size:14px; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); }
+    th { color: var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; font-weight:600; }
+    tr:hover td { background: var(--panel); }
+    .pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; border:1px solid var(--line); background:var(--panel-2); }
+    .pill.draft{color:var(--muted)} .pill.pending{color:var(--warn);border-color:#6b5410}
+    .pill.approved,.pill.active,.pill.connected,.pill.posted,.pill.live{color:var(--good);border-color:#1c6b4a}
+    .pill.rejected,.pill.failed,.pill.error{color:var(--bad);border-color:#6b2020}
+    .pill.scheduled,.pill.queued{color:var(--accent)}
+    .pill.paused,.pill.skipped,.pill.changes_requested{color:var(--warn)}
+    .pill.sandbox{color:var(--accent)} .pill.hard{color:var(--bad)} .pill.soft{color:var(--warn)}
+    label { display:block; font-size:12px; color: var(--muted); margin: 12px 0 5px; }
+    input, select, textarea { width:100%; background: var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:14px; font-family:inherit; }
+    textarea { resize: vertical; min-height:78px; }
+    input:focus, select:focus, textarea:focus { outline:none; border-color: var(--accent); }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+    button.btn { background: var(--accent-2); color:#04121b; border:none; border-radius:8px; padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+    button.btn:hover { background: var(--accent); }
+    button.btn.ghost { background:var(--panel-2); color:var(--text); border:1px solid var(--line); }
+    button.btn.ghost:hover { border-color:var(--accent); background:var(--panel-3); }
+    button.btn.good { background: var(--good); color:#052117; }
+    button.btn.bad { background: var(--bad); color:#2a0a0a; }
+    button.btn.sm { padding:6px 11px; font-size:13px; }
+    button.btn:disabled { opacity:.55; cursor:not-allowed; }
+    .toolbar { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+    .toolbar .spacer{flex:1}
+    .muted { color: var(--muted); }
+    .empty { color: var(--muted); padding: 30px; text-align:center; border:1px dashed var(--line); border-radius: var(--radius); }
+    .banner { padding:11px 14px; border-radius:8px; margin-bottom:16px; font-size:14px; }
+    .banner.stop { background:#3a1414; border:1px solid #6b2020; color:#ffc9c9; font-weight:600; }
+    .banner.info { background:#12293b; border:1px solid #1d4a66; color:#bfe6fb; }
+    .banner.warn { background:#3a2f12; border:1px solid #6b5410; color:#f5dd9a; }
+    .tabs { display:flex; gap:6px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:4px; margin-bottom:16px; width:fit-content; }
+    .tabs button { background:transparent; border:none; color:var(--muted); padding:7px 14px; font-size:13px; font-weight:600; border-radius:6px; cursor:pointer; }
+    .tabs button.active { background:var(--accent-2); color:#04121b; }
+    .split { display:grid; grid-template-columns: 340px 1fr; gap:20px; align-items:start; }
+    @media (max-width:900px){ .split{grid-template-columns:1fr} .app{grid-template-columns:64px 1fr} .brand b,.navsec,.nav a span.lbl{display:none} }
+    /* variation cards */
+    .vcard { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:15px; }
+    .vcard h4 { margin:0 0 8px; font-size:15px; }
+    .field { margin:8px 0; } .field .fk { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    .field .fv { font-size:14px; white-space:pre-wrap; }
+    .tag { display:inline-block; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; font-size:12px; color:var(--accent); margin:2px 3px 0 0; }
+    .cta { display:inline-block; background:var(--panel-2); border:1px solid var(--line); border-radius:999px; padding:2px 10px; font-size:13px; }
+    /* modal */
+    .modalbg { position:fixed; inset:0; background:rgba(3,8,14,.66); display:flex; align-items:center; justify-content:center; z-index:50; }
+    .modal { background: var(--panel); border:1px solid var(--line); border-radius:14px; width:min(560px,92vw); max-height:88vh; overflow:auto; padding:20px; }
+    .modal h3 { margin:0 0 6px; font-size:17px; }
+    .modal .actions { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+    /* toast */
+    #toast { position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:60; }
+    .toast { background:var(--panel-3); border:1px solid var(--line); border-left:3px solid var(--accent); color:var(--text); padding:10px 14px; border-radius:8px; font-size:13px; max-width:360px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
+    .toast.err { border-left-color: var(--bad); } .toast.ok { border-left-color: var(--good); }
+    .spinner { display:inline-block; width:15px;height:15px; border:2px solid rgba(255,255,255,.25); border-top-color:#04121b; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px; margin-right:7px;}
+    @keyframes spin { to { transform: rotate(360deg);} }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Modpools Ad Studio</h1>
-    <p>Describe an offer, pick a brand and platform, and generate on-brand ad variations.</p>
-  </header>
-
-  <div class="wrap">
-    <form id="brief">
-      <div id="keyBanner" class="banner" style="display:none">
-        No <code>ANTHROPIC_API_KEY</code> configured. Add one to <code>.env</code> and restart.
-      </div>
-
-      <div class="tabs" role="tablist">
-        <button type="button" class="tab active" data-mode="single">Single offer</button>
-        <button type="button" class="tab" data-mode="bulk">Bulk (many offers)</button>
-      </div>
-
-      <label for="brand">Brand</label>
-      <select id="brand" name="brand"></select>
-
-      <label for="platform">Platform</label>
-      <select id="platform" name="platform">
-        <option value="facebook">Facebook</option>
-        <option value="instagram">Instagram</option>
-        <option value="google_search">Google Search</option>
-        <option value="google_display">Google Display</option>
-        <option value="linkedin">LinkedIn</option>
-      </select>
-
-      <label for="product" id="productLabel">Product / offer / angle</label>
-      <textarea id="product" name="product" placeholder="e.g. Summer install special on the 20ft container pool with the acrylic window."></textarea>
-      <div class="hint" id="bulkHint" style="display:none">One offer per line — each line becomes its own set of ads. Up to 25 per batch.</div>
-
-      <label for="audience">Audience <span class="hint">(optional — overrides the brand default)</span></label>
-      <input id="audience" name="audience" placeholder="Leave blank to use the brand default" />
-
-      <div class="row">
-        <div>
-          <label for="goal">Goal</label>
-          <select id="goal" name="goal">
-            <option value="awareness">Brand awareness</option>
-            <option value="traffic">Website traffic</option>
-            <option value="leads" selected>Lead generation</option>
-            <option value="sales">Sales / conversions</option>
-            <option value="engagement">Engagement</option>
-          </select>
-        </div>
-        <div>
-          <label for="count">Variations</label>
-          <select id="count" name="count">
-            <option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option>
-          </select>
-        </div>
-      </div>
-
-      <label for="tone">Tone <span class="hint">(optional)</span></label>
-      <input id="tone" name="tone" placeholder="e.g. playful, premium, urgent" />
-
-      <button id="submit" type="submit">Generate ads</button>
-    </form>
-
-    <div class="results">
-      <div class="results-head">
-        <h2 id="resultsTitle"></h2>
-        <button type="button" id="exportBtn" class="export-btn" style="display:none">Download CSV</button>
-      </div>
-      <div id="status" class="status">Fill in the brief and click <strong>Generate ads</strong>.</div>
-      <div id="cards"></div>
-    </div>
+  <div class="app">
+    <aside class="side">
+      <div class="brand"><span class="dot"></span><b>Ad Manager</b></div>
+      <div class="navsec">Workspace</div>
+      <nav class="nav" id="nav-main"></nav>
+      <div class="navsec">Admin</div>
+      <nav class="nav" id="nav-admin"></nav>
+    </aside>
+    <header class="top">
+      <div class="title" id="topTitle">Dashboard</div>
+      <div class="spacer"></div>
+      <select class="userpick" id="userPick" title="Acting as (dev role switch)"></select>
+      <button class="iconbtn" id="bell" title="Notifications">🔔<span class="count" id="bellCount" style="display:none">0</span></button>
+      <button class="estop" id="estop">■ Emergency Stop</button>
+    </header>
+    <main class="main" id="view"></main>
   </div>
+  <div id="toast"></div>
 
   <script>
-    const $ = (id) => document.getElementById(id);
-    let mode = "single";
-    let lastRows = []; // flattened rows for CSV export
+  const $ = (id) => document.getElementById(id);
+  const USERS = [
+    ["admin@modpools.local","Admin (admin)"],
+    ["manager@modpools.local","Marketing Manager"],
+    ["creator@modpools.local","Ad Creator"],
+    ["approver@modpools.local","Approver"],
+    ["analyst@modpools.local","Analyst (view)"],
+  ];
+  const PLATFORMS = [["facebook","Facebook"],["instagram","Instagram"],["google_search","Google Search"],["google_display","Google Display"],["linkedin","LinkedIn"]];
+  const GOALS = [["awareness","Brand awareness"],["traffic","Website traffic"],["leads","Lead generation"],["sales","Sales / conversions"],["engagement","Engagement"]];
+  const LIMIT_METRICS = [["max_ads_day","Max ads / day"],["max_ads_week","Max ads / week"],["max_ads_month","Max ads / month"],["max_active_per_platform","Max active / platform"],["min_gap_minutes","Min minutes between posts"],["max_spend_day","Max spend / day"],["max_spend_campaign","Max spend / campaign"],["max_spend_platform","Max spend / platform"]];
+  const RULE_TYPES = [["cpl","Cost per lead too high"],["budget","Budget reached"],["frequency","Frequency too high"],["ctr","CTR collapsed"],["zero_conversions","Spend, no conversions"]];
+  const PERIODS = [["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"],["lifetime","Lifetime"]];
 
-    async function loadBrands() {
-      try {
-        const res = await fetch("/api/brands");
-        const data = await res.json();
-        const sel = $("brand");
-        sel.innerHTML = "";
-        for (const b of data.brands) {
-          const opt = document.createElement("option");
-          opt.value = b.id;
-          opt.textContent = b.name;
-          sel.appendChild(opt);
-        }
-      } catch (e) { /* leave default empty */ }
-    }
+  const state = { user: localStorage.getItem("mam_user") || "admin@modpools.local", tab: "dashboard" };
+  const isAdmin = () => state.user.startsWith("admin@");
+  const canApprove = () => ["admin@","manager@","approver@"].some(p=>state.user.startsWith(p));
+  const platLabel = (v)=> (PLATFORMS.find(p=>p[0]===v)||[v,v])[1];
 
-    async function checkHealth() {
-      try {
-        const res = await fetch("/api/health");
-        const data = await res.json();
-        if (!data.api_key_configured) $("keyBanner").style.display = "block";
-      } catch (e) { /* ignore */ }
-    }
+  const NAV_MAIN = [
+    ["dashboard","▦","Dashboard"], ["create","✎","Create Ads"], ["campaigns","▤","Campaigns"],
+    ["approvals","✓","Approvals"], ["calendar","▣","Ad Calendar"], ["analytics","📈","Analytics"],
+  ];
+  const NAV_ADMIN = [ ["limits","⛒","Ad Limits"], ["budgets","$","Budget Manager"], ["connections","⚭","Connections"] ];
+  const TITLES = Object.fromEntries([...NAV_MAIN,...NAV_ADMIN].map(n=>[n[0],n[2]]));
 
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, (c) =>
-        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-    }
+  // ---------- utilities ----------
+  function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function money(n){ return "$"+Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2}); }
+  function pct(n){ return (Number(n||0)*100).toFixed(1)+"%"; }
+  function fmtDT(s){ if(!s) return "—"; const d=new Date(s); return d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
+  function pill(s){ return `<span class="pill ${esc(s)}">${esc(String(s).replace(/_/g," "))}</span>`; }
+  function toast(msg, kind=""){ const t=document.createElement("div"); t.className="toast "+kind; t.textContent=msg; $("toast").appendChild(t); setTimeout(()=>t.remove(),4200); }
 
-    function setMode(next) {
-      mode = next;
-      document.querySelectorAll(".tab").forEach((t) =>
-        t.classList.toggle("active", t.dataset.mode === next));
-      const bulk = next === "bulk";
-      $("productLabel").textContent = bulk ? "Offers (one per line)" : "Product / offer / angle";
-      $("bulkHint").style.display = bulk ? "block" : "none";
-      $("product").placeholder = bulk
-        ? "20ft container pool summer install special\nAcrylic-window pool upgrade\nMove-in-ready backyard pool, installed in a day"
-        : "e.g. Summer install special on the 20ft container pool with the acrylic window.";
-      $("submit").textContent = bulk ? "Generate all" : "Generate ads";
-    }
+  async function api(path, {method="GET", body}={}) {
+    const res = await fetch(path, { method, headers: {"Content-Type":"application/json","X-User-Email":state.user}, body: body!==undefined?JSON.stringify(body):undefined });
+    let data=null; try{ data=await res.json(); }catch(e){}
+    if(!res.ok) throw new Error((data&&data.detail)||("HTTP "+res.status));
+    return data;
+  }
 
-    function variationCard(v, i) {
-      const tags = (v.hashtags || []).map((t) =>
-        `<span class="tag">${escapeHtml(t.startsWith("#") ? t : "#" + t)}</span>`).join("");
-      const copyText = [
-        `Headline: ${v.headline}`,
-        `Primary text: ${v.primary_text}`,
-        `Description: ${v.description}`,
-        `CTA: ${v.call_to_action}`,
-        (v.hashtags || []).length ? `Hashtags: ${(v.hashtags || []).join(" ")}` : "",
-        `Visual concept: ${v.visual_concept}`,
-      ].filter(Boolean).join("\n");
+  function modal(title, innerHTML, onOk, okLabel="Save"){
+    const bg=document.createElement("div"); bg.className="modalbg";
+    bg.innerHTML=`<div class="modal"><h3>${esc(title)}</h3><div class="mbody">${innerHTML}</div>
+      <div class="actions"><button class="btn ghost" data-x>Cancel</button><button class="btn" data-ok>${esc(okLabel)}</button></div></div>`;
+    document.body.appendChild(bg);
+    const close=()=>bg.remove();
+    bg.querySelector("[data-x]").onclick=close;
+    bg.addEventListener("click",e=>{ if(e.target===bg) close(); });
+    bg.querySelector("[data-ok]").onclick=async()=>{ try{ await onOk(bg, close); }catch(err){ toast(err.message,"err"); } };
+    return bg;
+  }
+  const val = (bg,name)=> bg.querySelector(`[name=${name}]`).value.trim();
+  const opts = (arr, sel)=> arr.map(([v,l])=>`<option value="${v}"${v===sel?" selected":""}>${esc(l)}</option>`).join("");
 
-      const card = document.createElement("div");
-      card.className = "card";
-      card.innerHTML = `
-        <h3>Variation ${i + 1}</h3>
-        <div class="field"><div class="k">Headline</div><div class="v">${escapeHtml(v.headline)}</div></div>
-        <div class="field"><div class="k">Primary text</div><div class="v">${escapeHtml(v.primary_text)}</div></div>
-        <div class="field"><div class="k">Description</div><div class="v">${escapeHtml(v.description)}</div></div>
-        <div class="field"><div class="k">Call to action</div><div class="v"><span class="cta">${escapeHtml(v.call_to_action)}</span></div></div>
-        ${tags ? `<div class="field"><div class="k">Hashtags</div><div class="tags">${tags}</div></div>` : ""}
-        <div class="field"><div class="k">Visual concept</div><div class="v visual">${escapeHtml(v.visual_concept)}</div></div>
-        <div class="rationale">${escapeHtml(v.rationale)}</div>
-        <button class="copy-btn" type="button">Copy</button>
-      `;
-      const btn = card.querySelector(".copy-btn");
-      btn.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(copyText); btn.textContent = "Copied!"; }
-        catch (e) { btn.textContent = "Copy failed"; }
-        setTimeout(() => (btn.textContent = "Copy"), 1500);
-      });
-      return card;
-    }
+  // ---------- shell ----------
+  function renderNav(pending=0){
+    const mk=(list)=> list.map(([id,ic,lbl])=>`<a data-tab="${id}" class="${state.tab===id?"active":""}"><span class="ic">${ic}</span><span class="lbl">${lbl}</span>${id==="approvals"&&pending?`<span class="badge">${pending}</span>`:""}</a>`).join("");
+    $("nav-main").innerHTML=mk(NAV_MAIN); $("nav-admin").innerHTML=mk(NAV_ADMIN);
+    document.querySelectorAll(".nav a").forEach(a=>a.onclick=()=>go(a.dataset.tab));
+  }
+  function go(tab){ state.tab=tab; $("topTitle").textContent=TITLES[tab]||tab; renderNav(); render(); }
 
-    function pushRows(meta, offer, variations) {
-      variations.forEach((v, i) => {
-        lastRows.push({
-          brand: meta.brand, platform: meta.platform, offer,
-          variation: i + 1,
-          headline: v.headline, primary_text: v.primary_text, description: v.description,
-          call_to_action: v.call_to_action, hashtags: (v.hashtags || []).join(" "),
-          visual_concept: v.visual_concept, rationale: v.rationale,
-        });
-      });
-    }
+  async function refreshChrome(){
+    try{ const n=await api("/api/notifications?unread_only=false&limit=50"); const c=n.length;
+      $("bellCount").style.display=c?"inline-block":"none"; $("bellCount").textContent=c; state._notes=n; }catch(e){}
+    if(canApprove()){ try{ const q=await api("/api/approvals"); renderNav(q.length); }catch(e){ renderNav(0); } }
+    else { renderNav(0); }
+    try{ const d=await api("/api/dashboard"); $("estop").classList.toggle("on", d.emergency_stop); $("estop").innerHTML=(d.emergency_stop?"■ STOPPED — click to clear":"■ Emergency Stop"); }catch(e){}
+  }
 
-    function csvCell(s) {
-      const v = String(s ?? "");
-      return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-    }
+  // ---------- views ----------
+  const V = {};
 
-    function downloadCsv() {
-      if (!lastRows.length) return;
-      const cols = ["brand","platform","offer","variation","headline","primary_text",
-        "description","call_to_action","hashtags","visual_concept","rationale"];
-      const lines = [cols.join(",")];
-      for (const r of lastRows) lines.push(cols.map((c) => csvCell(r[c])).join(","));
-      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const stamp = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `modpools-ads-${stamp}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+  V.dashboard = async () => {
+    const d = await api("/api/dashboard");
+    const k = d.kpis;
+    let h = "";
+    if(d.emergency_stop) h += `<div class="banner stop">⛔ Emergency Stop is ACTIVE — all live ads are paused and posting is blocked. Use the button top-right to clear it.</div>`;
+    h += `<div class="tiles">
+      ${tile("Spend", money(k.spend))}${tile("Leads", k.leads)}${tile("CTR", pct(k.ctr))}
+      ${tile("Cost / lead", money(k.cpl))}${tile("ROAS", (k.roas||0)+"×")}${tile("Live ads", d.live_ads)}
+    </div>
+    <div class="tiles">
+      ${tile("Active campaigns", d.active_campaigns)}${tile("Pending approvals", d.pending_approvals)}
+      ${tile("Scheduled (7d)", d.scheduled_next_7d)}${tile("Unread alerts", d.unread_alerts)}
+    </div>`;
+    if(isAdmin()) h += `<div class="toolbar"><button class="btn ghost" id="tick">▶ Run scheduler now (sandbox)</button>
+      <span class="muted">No background worker in dev — this runs the poster + auto-pause engine once.</span></div>`;
+    $("view").innerHTML = h;
+    if(isAdmin()) $("tick").onclick = async (e)=>{ e.target.disabled=true; try{ const r=await api("/api/engine/tick",{method:"POST"});
+      toast(`Posted ${r.poster.posted}, skipped ${r.poster.skipped}; auto-paused ${r.rule_engine.auto_paused+r.rule_engine.budget_paused}`,"ok"); await refreshChrome(); render(); }catch(err){toast(err.message,"err");e.target.disabled=false;} };
+  };
+  const tile=(k,v,sm)=>`<div class="tile"><div class="k">${esc(k)}</div><div class="v ${sm?"sm":""}">${esc(v)}</div></div>`;
 
-    async function runSingle(body, status, cards) {
-      const res = await fetch("/api/generate", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Generation failed.");
-      status.textContent = "";
-      data.variations.forEach((v, i) => cards.appendChild(variationCard(v, i)));
-      if (!data.variations.length) status.textContent = "No variations returned. Try again.";
-      pushRows({ brand: data.brand, platform: data.platform }, body.product, data.variations);
-    }
+  V.create = async () => {
+    const brands = (await api("/api/brands")).brands;
+    const camps = await api("/api/campaigns");
+    $("view").innerHTML = `
+      <div class="tabs"><button data-m="single" class="active">Single offer</button><button data-m="bulk">Bulk (many offers)</button></div>
+      <div class="split">
+        <div class="card">
+          <label>Brand</label><select id="f_brand">${brands.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join("")}</select>
+          <label>Platform</label><select id="f_platform">${opts(PLATFORMS)}</select>
+          <label id="lbl_offer">Product / offer / angle</label>
+          <textarea id="f_offer" placeholder="Summer install special on the 20ft container pool with the acrylic window."></textarea>
+          <div id="hint_bulk" class="muted" style="display:none;font-size:12px;margin-top:5px">One offer per line (up to 25).</div>
+          <label>Audience <span class="muted">(optional)</span></label><input id="f_audience" placeholder="Leave blank for brand default" />
+          <div class="grid2"><div><label>Goal</label><select id="f_goal">${opts(GOALS,"leads")}</select></div>
+          <div><label>Variations</label><select id="f_count"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select></div></div>
+          <label>Tone <span class="muted">(optional)</span></label><input id="f_tone" placeholder="e.g. premium, playful" />
+          <button class="btn" id="genBtn" style="margin-top:16px;width:100%">Generate ads</button>
+        </div>
+        <div>
+          <div class="toolbar">
+            <select id="saveCamp" style="max-width:280px"><option value="">Save results to campaign…</option>${camps.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
+            <button class="btn good sm" id="saveBtn" disabled>Save to campaign</button>
+            <button class="btn ghost sm" id="csvBtn" disabled>Download CSV</button>
+            <span class="spacer"></span>
+          </div>
+          <div id="status" class="muted">Fill in the brief and generate. Results are drafts you review before saving.</div>
+          <div id="results" style="margin-top:12px"></div>
+        </div>
+      </div>`;
+    let mode="single", lastRows=[], lastVariations=[], lastPlatform="facebook";
+    document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{ mode=b.dataset.m; document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x===b));
+      $("lbl_offer").textContent = mode==="bulk"?"Offers (one per line)":"Product / offer / angle"; $("hint_bulk").style.display=mode==="bulk"?"block":"none"; $("genBtn").textContent=mode==="bulk"?"Generate all":"Generate ads"; });
 
-    async function runBulk(body, offers, status, cards) {
-      const res = await fetch("/api/generate/bulk", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, products: offers }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Generation failed.");
-      status.textContent = "";
-      let total = 0;
-      for (const item of data.items) {
-        const head = document.createElement("div");
-        head.className = "group-head";
-        head.textContent = item.product;
-        cards.appendChild(head);
-        if (item.error) {
-          const err = document.createElement("div");
-          err.className = "group-error";
-          err.textContent = "⚠ " + item.error;
-          cards.appendChild(err);
-          continue;
-        }
-        const grid = document.createElement("div");
-        grid.className = "cards";
-        item.variations.forEach((v, i) => grid.appendChild(variationCard(v, i)));
-        cards.appendChild(grid);
-        pushRows({ brand: data.brand, platform: data.platform }, item.product, item.variations);
-        total += item.variations.length;
-      }
-      if (!total) status.textContent = "No variations were generated. Check your offers and try again.";
-    }
-
-    document.querySelectorAll(".tab").forEach((t) =>
-      t.addEventListener("click", () => setMode(t.dataset.mode)));
-
-    $("exportBtn").addEventListener("click", downloadCsv);
-
-    $("brief").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const status = $("status");
-      const cards = $("cards");
-      const submit = $("submit");
-      cards.innerHTML = "";
-      lastRows = [];
-      $("exportBtn").style.display = "none";
-      $("resultsTitle").textContent = "";
-      status.className = "status";
-
-      const raw = $("product").value.trim();
-      if (raw.length < 3) {
-        status.className = "status error";
-        status.textContent = mode === "bulk"
-          ? "Add at least one offer (one per line)."
-          : "Please describe the product or offer (at least a few words).";
-        return;
-      }
-
-      const base = {
-        brand: $("brand").value,
-        platform: $("platform").value,
-        audience: $("audience").value.trim() || null,
-        goal: $("goal").value,
-        tone: $("tone").value.trim() || null,
-        count: parseInt($("count").value, 10),
-      };
-
-      submit.disabled = true;
-
-      try {
-        if (mode === "bulk") {
-          const offers = raw.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 25);
-          status.innerHTML = `<span class="spinner"></span>Generating ads for ${offers.length} offer(s)… this can take a moment.`;
-          await runBulk(base, offers, status, cards);
+    $("genBtn").onclick = async () => {
+      const raw=$("f_offer").value.trim(); if(raw.length<3){ toast("Describe the offer first.","err"); return; }
+      const base={ brand:$("f_brand").value, platform:$("f_platform").value, audience:$("f_audience").value.trim()||null, goal:$("f_goal").value, tone:$("f_tone").value.trim()||null, count:parseInt($("f_count").value,10) };
+      lastPlatform=base.platform; $("genBtn").disabled=true; $("status").innerHTML=`<span class="spinner"></span>Generating…`; $("results").innerHTML=""; lastRows=[]; lastVariations=[];
+      try{
+        if(mode==="bulk"){
+          const offers=raw.split("\n").map(s=>s.trim()).filter(Boolean).slice(0,25);
+          const data=await api("/api/generate/bulk",{method:"POST",body:{...base,products:offers}});
+          let html=""; data.items.forEach(it=>{ html+=`<h4 style="color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:5px;margin:16px 0 10px">${esc(it.product)}</h4>`;
+            if(it.error){ html+=`<div class="banner warn">⚠ ${esc(it.error)}</div>`; return; }
+            html+=`<div class="cardgrid">`+it.variations.map((v,i)=>vcard(v,i)).join("")+`</div>`;
+            it.variations.forEach((v,i)=>pushRow(lastRows,base,it.product,v,i)); lastVariations.push(...it.variations); });
+          $("results").innerHTML=html;
         } else {
-          status.innerHTML = '<span class="spinner"></span>Generating on-brand variations…';
-          await runSingle({ ...base, product: raw }, status, cards);
+          const data=await api("/api/generate",{method:"POST",body:{...base,product:raw}});
+          $("results").innerHTML=`<div class="cardgrid">`+data.variations.map((v,i)=>vcard(v,i)).join("")+`</div>`;
+          data.variations.forEach((v,i)=>pushRow(lastRows,base,raw,v,i)); lastVariations=data.variations;
         }
-        if (lastRows.length) {
-          $("resultsTitle").textContent = `${lastRows.length} ad(s) ready to review`;
-          $("exportBtn").style.display = "inline-block";
-        }
-      } catch (err) {
-        status.className = "status error";
-        status.textContent = err.message || "Something went wrong.";
-      } finally {
-        submit.disabled = false;
-      }
-    });
+        $("status").textContent = lastVariations.length?`${lastVariations.length} draft ad(s) ready to review.`:"No results.";
+        $("saveBtn").disabled = !lastVariations.length; $("csvBtn").disabled = !lastRows.length;
+        wireCopy();
+      }catch(err){ $("status").innerHTML=`<span style="color:var(--bad)">${esc(err.message)}</span>`; }
+      finally{ $("genBtn").disabled=false; }
+    };
+    $("saveBtn").onclick = async () => {
+      const cid=$("saveCamp").value; if(!cid){ toast("Pick a campaign first.","err"); return; }
+      if(!lastVariations.length) return;
+      try{ const saved=await api(`/api/campaigns/${cid}/ads/from-generation`,{method:"POST",body:{platform:lastPlatform,variations:lastVariations}});
+        toast(`Saved ${saved.length} draft ad(s) to campaign.`,"ok"); }catch(err){ toast(err.message,"err"); }
+    };
+    $("csvBtn").onclick = () => downloadCSV(lastRows);
+  };
+  function vcard(v,i){
+    const tags=(v.hashtags||[]).map(t=>`<span class="tag">${esc(t.startsWith("#")?t:"#"+t)}</span>`).join("");
+    const copy=[`Headline: ${v.headline}`,`Primary: ${v.primary_text}`,`Description: ${v.description}`,`CTA: ${v.call_to_action}`,(v.hashtags||[]).length?`Hashtags: ${v.hashtags.join(" ")}`:"",`Visual: ${v.visual_concept}`].filter(Boolean).join("\n");
+    return `<div class="vcard"><h4>Variation ${i+1}</h4>
+      <div class="field"><div class="fk">Headline</div><div class="fv">${esc(v.headline)}</div></div>
+      <div class="field"><div class="fk">Primary text</div><div class="fv">${esc(v.primary_text)}</div></div>
+      <div class="field"><div class="fk">Description</div><div class="fv">${esc(v.description)}</div></div>
+      <div class="field"><div class="fk">CTA</div><div class="fv"><span class="cta">${esc(v.call_to_action)}</span></div></div>
+      ${tags?`<div class="field"><div class="fk">Hashtags</div>${tags}</div>`:""}
+      <div class="field"><div class="fk">Visual concept</div><div class="fv muted">${esc(v.visual_concept)}</div></div>
+      <button class="btn ghost sm copy" data-c="${esc(copy)}" style="margin-top:8px">Copy</button></div>`;
+  }
+  function wireCopy(){ document.querySelectorAll(".copy").forEach(b=>b.onclick=async()=>{ try{ await navigator.clipboard.writeText(b.dataset.c); b.textContent="Copied!"; setTimeout(()=>b.textContent="Copy",1200);}catch(e){} }); }
+  function pushRow(rows,base,offer,v,i){ rows.push({brand:base.brand,platform:base.platform,offer,variation:i+1,headline:v.headline,primary_text:v.primary_text,description:v.description,call_to_action:v.call_to_action,hashtags:(v.hashtags||[]).join(" "),visual_concept:v.visual_concept,rationale:v.rationale}); }
+  function downloadCSV(rows){ if(!rows.length) return; const cols=Object.keys(rows[0]); const cell=s=>{const v=String(s??"");return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+    const csv=[cols.join(",")].concat(rows.map(r=>cols.map(c=>cell(r[c])).join(","))).join("\n");
+    const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download="modpools-ads-"+new Date().toISOString().slice(0,10)+".csv"; a.click(); URL.revokeObjectURL(a.href); }
 
-    loadBrands();
-    checkHealth();
-    setMode("single");
+  V.campaigns = async () => {
+    const camps = await api("/api/campaigns");
+    let h = `<div class="toolbar"><button class="btn" id="newCamp">+ New campaign</button><span class="spacer"></span><span class="muted">${camps.length} campaign(s)</span></div>`;
+    if(!camps.length) h += `<div class="empty">No campaigns yet. Create one, then generate ads into it from <b>Create Ads</b>.</div>`;
+    else h += `<table><thead><tr><th>Name</th><th>Season</th><th>Market</th><th>Size</th><th>Status</th><th></th></tr></thead><tbody>`+
+      camps.map(c=>`<tr><td><a data-open="${c.id}">${esc(c.name)}</a></td><td>${esc(c.season||"—")}</td><td>${esc(c.market||"—")}</td><td>${esc(c.product_size||"—")}</td><td>${pill(c.status)}</td>
+        <td style="text-align:right">${c.status!=="active"?`<button class="btn ghost sm" data-act="active" data-id="${c.id}">Activate</button> `:""}${c.status!=="paused"?`<button class="btn ghost sm" data-act="paused" data-id="${c.id}">Pause</button> `:""}<button class="btn ghost sm" data-arch="${c.id}">Archive</button></td></tr>`).join("")+`</tbody></table>`;
+    h += `<div id="campDetail" style="margin-top:18px"></div>`;
+    $("view").innerHTML=h;
+    $("newCamp").onclick=()=>modal("New campaign",
+      `<label>Name</label><input name="name" placeholder="Spring 16ft Lead Push"/>
+       <div class="grid2"><div><label>Season</label><input name="season"/></div><div><label>Market</label><input name="market"/></div></div>
+       <div class="grid2"><div><label>Product size</label><input name="product_size" placeholder="16ft"/></div><div><label>Audience</label><input name="audience"/></div></div>
+       <label>Offer</label><textarea name="offer"></textarea>`,
+      async (bg,close)=>{ const name=val(bg,"name"); if(!name) throw new Error("Name is required.");
+        await api("/api/campaigns",{method:"POST",body:{name,season:val(bg,"season")||null,market:val(bg,"market")||null,product_size:val(bg,"product_size")||null,audience:val(bg,"audience")||null,offer:val(bg,"offer")||null}});
+        toast("Campaign created.","ok"); close(); render(); });
+    document.querySelectorAll("[data-act]").forEach(b=>b.onclick=async()=>{ try{ await api(`/api/campaigns/${b.dataset.id}`,{method:"PATCH",body:{status:b.dataset.act}}); render(); }catch(e){toast(e.message,"err");} });
+    document.querySelectorAll("[data-arch]").forEach(b=>b.onclick=async()=>{ try{ await api(`/api/campaigns/${b.dataset.arch}/archive`,{method:"POST"}); toast("Archived.","ok"); render(); }catch(e){toast(e.message,"err");} });
+    document.querySelectorAll("[data-open]").forEach(a=>a.onclick=()=>openCampaign(a.dataset.open));
+  };
+  async function openCampaign(id){
+    const ads = await api(`/api/ads?campaign_id=${id}`);
+    $("campDetail").innerHTML = `<div class="card"><h3 style="margin-top:0">Ads in this campaign (${ads.length})</h3>`+
+      (ads.length?`<table><thead><tr><th>Headline</th><th>Platform</th><th>Status</th><th></th></tr></thead><tbody>`+
+      ads.map(a=>`<tr><td>${esc(a.headline)}</td><td>${esc(platLabel(a.platform))}</td><td>${pill(a.status)}</td>
+        <td style="text-align:right">${["draft","changes_requested","rejected"].includes(a.status)?`<button class="btn ghost sm" data-submit="${a.id}">Submit for approval</button>`:""}</td></tr>`).join("")+`</tbody></table>`
+      :`<div class="empty">No ads yet. Generate some in <b>Create Ads</b> and save them here.</div>`)+`</div>`;
+    document.querySelectorAll("[data-submit]").forEach(b=>b.onclick=async()=>{ try{ await api(`/api/ads/${b.dataset.submit}/submit`,{method:"POST"}); toast("Sent to approval queue.","ok"); openCampaign(id); refreshChrome(); }catch(e){toast(e.message,"err");} });
+  }
+
+  V.approvals = async () => {
+    const ads = await api("/api/approvals");
+    if(!ads.length){ $("view").innerHTML=`<div class="empty">Nothing waiting for approval. 🎉</div>`; return; }
+    $("view").innerHTML = `<p class="sub">${ads.length} ad(s) awaiting review. Rejecting requires a reason.</p><div class="cardgrid">`+
+      ads.map(a=>`<div class="vcard"><h4>${esc(platLabel(a.platform))} · ad #${a.id}</h4>
+        <div class="field"><div class="fk">Headline</div><div class="fv">${esc(a.headline)}</div></div>
+        <div class="field"><div class="fk">Primary</div><div class="fv">${esc(a.primary_text)}</div></div>
+        <div class="field"><div class="fk">CTA</div><div class="fv"><span class="cta">${esc(a.call_to_action)}</span></div></div>
+        <div class="row" style="margin-top:10px"><button class="btn good sm" data-ap="${a.id}">Approve</button>
+          <button class="btn ghost sm" data-rc="${a.id}">Request changes</button>
+          <button class="btn bad sm" data-rj="${a.id}">Reject</button></div></div>`).join("")+`</div>`;
+    document.querySelectorAll("[data-ap]").forEach(b=>b.onclick=async()=>{ try{ await api(`/api/ads/${b.dataset.ap}/approve`,{method:"POST",body:{}}); toast("Approved.","ok"); render(); refreshChrome(); }catch(e){toast(e.message,"err");} });
+    const reason=(id,ep,label)=>modal(label,`<label>Comment ${ep==="reject"?"(required)":""}</label><textarea name="comment"></textarea>`,
+      async(bg,close)=>{ const c=val(bg,"comment"); await api(`/api/ads/${id}/${ep}`,{method:"POST",body:{comment:c||null}}); toast(label+" done.","ok"); close(); render(); refreshChrome(); });
+    document.querySelectorAll("[data-rj]").forEach(b=>b.onclick=()=>reason(b.dataset.rj,"reject","Reject"));
+    document.querySelectorAll("[data-rc]").forEach(b=>b.onclick=()=>reason(b.dataset.rc,"request-changes","Request changes"));
+  };
+
+  V.calendar = async () => {
+    const [scheds, blackouts, approved] = await Promise.all([ api("/api/schedules"), api("/api/blackouts"), api("/api/ads?status=approved") ]);
+    let h = `<div class="toolbar"><button class="btn" id="sch" ${approved.length?"":"disabled"}>+ Schedule an ad</button>
+      ${isAdmin()?`<button class="btn ghost" id="tick">▶ Run scheduler now</button>`:""}
+      <span class="spacer"></span><span class="muted">${approved.length} approved ad(s) ready to schedule</span></div>`;
+    if(blackouts.length) h += `<div class="banner warn">Blackout dates: ${blackouts.map(b=>esc(b.start_date+(b.end_date!==b.start_date?"→"+b.end_date:"")+(b.reason?" ("+b.reason+")":""))).join(" · ")}</div>`;
+    if(!scheds.length) h += `<div class="empty">Nothing scheduled. Approve ads, then schedule them here.</div>`;
+    else {
+      const byDay={}; scheds.forEach(s=>{ const d=new Date(s.scheduled_at).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}); (byDay[d]=byDay[d]||[]).push(s); });
+      h += Object.entries(byDay).map(([day,items])=>`<div class="card"><div style="color:var(--accent);font-weight:600;margin-bottom:8px">${esc(day)}</div>`+
+        `<table><tbody>`+items.map(s=>`<tr><td>${fmtDT(s.scheduled_at)}</td><td>${esc(platLabel(s.platform))}</td><td>ad #${s.ad_id}</td><td>${pill(s.status)}</td>
+          <td style="text-align:right">${s.status==="queued"?`<button class="btn ghost sm" data-cancel="${s.id}">Cancel</button>`:""}${s.note?`<span class="muted" title="${esc(s.note)}"> ⓘ</span>`:""}</td></tr>`).join("")+`</tbody></table></div>`).join("");
+    }
+    $("view").innerHTML=h;
+    if($("sch")) $("sch").onclick=()=>modal("Schedule an approved ad",
+      `<label>Ad</label><select name="ad_id">${approved.map(a=>`<option value="${a.id}">#${a.id} · ${esc(platLabel(a.platform))} · ${esc(a.headline.slice(0,40))}</option>`).join("")}</select>
+       <label>When</label><input type="datetime-local" name="when"/><label>Note (optional)</label><input name="note"/>`,
+      async(bg,close)=>{ const when=bg.querySelector("[name=when]").value; if(!when) throw new Error("Pick a date/time.");
+        await api("/api/schedules",{method:"POST",body:{ad_id:parseInt(val(bg,"ad_id"),10),scheduled_at:new Date(when).toISOString(),note:val(bg,"note")||null}});
+        toast("Scheduled.","ok"); close(); render(); },"Schedule");
+    if($("tick")) $("tick").onclick=async(e)=>{ e.target.disabled=true; try{ const r=await api("/api/engine/tick",{method:"POST"}); toast(`Posted ${r.poster.posted}, skipped ${r.poster.skipped}.`,"ok"); render(); refreshChrome(); }catch(err){toast(err.message,"err");e.target.disabled=false;} };
+    document.querySelectorAll("[data-cancel]").forEach(b=>b.onclick=async()=>{ try{ await api(`/api/schedules/${b.dataset.cancel}/cancel`,{method:"POST"}); toast("Canceled.","ok"); render(); }catch(e){toast(e.message,"err");} });
+  };
+
+  V.analytics = async () => {
+    const s = await api("/api/analytics/summary");
+    $("view").innerHTML = `<div class="tiles">
+      ${tile("Impressions",s.impressions.toLocaleString())}${tile("Clicks",s.clicks.toLocaleString())}${tile("CTR",pct(s.ctr))}
+      ${tile("Leads",s.leads)}${tile("Cost / lead",money(s.cpl))}${tile("Conv. rate",pct(s.conversion_rate))}
+      </div><div class="tiles">
+      ${tile("Spend",money(s.spend))}${tile("Conversions",s.conversions)}${tile("Booked calls",s.booked_calls)}
+      ${tile("Sales",s.sales)}${tile("Revenue",money(s.revenue))}${tile("ROAS",(s.roas||0)+"×")}
+      </div>
+      <div class="card"><b>Funnel</b><div class="muted" style="margin-top:8px">Impressions ${s.impressions.toLocaleString()} → Clicks ${s.clicks.toLocaleString()} → Leads ${s.leads} → Booked calls ${s.booked_calls} → Sales ${s.sales}</div></div>
+      <p class="muted">Metrics come from the platform sync (sandbox: ingested via the API). Once a live platform adapter is connected, this fills from real campaign data.</p>`;
+  };
+
+  // ----- Admin -----
+  V.limits = async () => {
+    const [limits, rules, blackouts] = await Promise.all([ api("/api/limits"), api("/api/auto-pause-rules"), api("/api/blackouts") ]);
+    const admin = state.user.startsWith("admin@")||state.user.startsWith("manager@");
+    $("view").innerHTML = `
+      <div class="card"><div class="toolbar"><b>Posting & spend limits</b><span class="spacer"></span>${admin?`<button class="btn sm" id="addLimit">+ Add limit</button>`:""}</div>
+        ${limits.length?`<table><thead><tr><th>Metric</th><th>Scope</th><th>Value</th><th>Cap</th><th></th></tr></thead><tbody>`+
+          limits.map(l=>`<tr><td>${esc((LIMIT_METRICS.find(m=>m[0]===l.metric)||[l.metric,l.metric])[1])}</td><td>${esc(l.scope)}${l.scope_ref_value?" · "+esc(l.scope_ref_value):""}${l.scope_ref_id?" · #"+l.scope_ref_id:""}</td><td>${l.value}</td><td>${pill(l.cap_type)}</td><td style="text-align:right">${admin?`<button class="btn ghost sm" data-dl="${l.id}">Delete</button>`:""}</td></tr>`).join("")+`</tbody></table>`:`<div class="empty">No limits set.</div>`}</div>
+      <div class="card"><div class="toolbar"><b>Auto-pause rules</b><span class="spacer"></span>${admin?`<button class="btn sm" id="addRule">+ Add rule</button>`:""}</div>
+        ${rules.length?`<table><thead><tr><th>Rule</th><th>Threshold</th><th>Window</th><th>Action</th><th></th></tr></thead><tbody>`+
+          rules.map(r=>`<tr><td>${esc((RULE_TYPES.find(t=>t[0]===r.rule_type)||[r.rule_type,r.rule_type])[1])}</td><td>${r.threshold}</td><td>${r.window_hours}h</td><td>${pill(r.action==="pause"?"paused":"pending")}${r.enabled?"":" (off)"}</td><td style="text-align:right">${admin?`<button class="btn ghost sm" data-dr="${r.id}">Delete</button>`:""}</td></tr>`).join("")+`</tbody></table>`:`<div class="empty">No auto-pause rules.</div>`}</div>
+      <div class="card"><div class="toolbar"><b>Blackout dates</b><span class="spacer"></span>${admin?`<button class="btn sm" id="addBO">+ Add blackout</button>`:""}</div>
+        ${blackouts.length?`<table><thead><tr><th>From</th><th>To</th><th>Scope</th><th>Reason</th><th></th></tr></thead><tbody>`+
+          blackouts.map(b=>`<tr><td>${esc(b.start_date)}</td><td>${esc(b.end_date)}</td><td>${esc(b.scope)}</td><td>${esc(b.reason||"—")}</td><td style="text-align:right">${admin?`<button class="btn ghost sm" data-db="${b.id}">Delete</button>`:""}</td></tr>`).join("")+`</tbody></table>`:`<div class="empty">No blackout dates.</div>`}</div>`;
+    if($("addLimit")) $("addLimit").onclick=()=>modal("Add limit",
+      `<label>Metric</label><select name="metric">${opts(LIMIT_METRICS)}</select>
+       <label>Scope</label><select name="scope"><option value="global">Global</option><option value="platform">Platform</option><option value="campaign">Campaign</option></select>
+       <div class="grid2"><div><label>Platform (if platform scope)</label><select name="scope_ref_value"><option value="">—</option>${opts(PLATFORMS)}</select></div>
+       <div><label>Campaign id (if campaign scope)</label><input name="scope_ref_id" type="number"/></div></div>
+       <div class="grid2"><div><label>Value</label><input name="value" type="number" step="any"/></div><div><label>Cap type</label><select name="cap_type"><option value="hard">Hard (enforced)</option><option value="soft">Soft (alert)</option></select></div></div>`,
+      async(bg,close)=>{ const body={metric:val(bg,"metric"),scope:val(bg,"scope"),value:parseFloat(val(bg,"value")),cap_type:val(bg,"cap_type"),scope_ref_value:val(bg,"scope_ref_value")||null,scope_ref_id:val(bg,"scope_ref_id")?parseInt(val(bg,"scope_ref_id"),10):null};
+        if(!body.value) throw new Error("Value required."); await api("/api/limits",{method:"POST",body}); toast("Limit added.","ok"); close(); render(); });
+    if($("addRule")) $("addRule").onclick=()=>modal("Add auto-pause rule",
+      `<label>Rule</label><select name="rule_type">${opts(RULE_TYPES)}</select>
+       <div class="grid2"><div><label>Threshold</label><input name="threshold" type="number" step="any" placeholder="e.g. 75 for $75 CPL"/></div><div><label>Window (hours)</label><input name="window_hours" type="number" value="24"/></div></div>
+       <label>Action</label><select name="action"><option value="pause">Pause the ad</option><option value="alert">Alert only</option></select>`,
+      async(bg,close)=>{ const body={rule_type:val(bg,"rule_type"),threshold:parseFloat(val(bg,"threshold")),window_hours:parseInt(val(bg,"window_hours")||"24",10),action:val(bg,"action")};
+        if(!body.threshold) throw new Error("Threshold required."); await api("/api/auto-pause-rules",{method:"POST",body}); toast("Rule added.","ok"); close(); render(); });
+    if($("addBO")) $("addBO").onclick=()=>modal("Add blackout dates",
+      `<div class="grid2"><div><label>Start</label><input name="start_date" type="date"/></div><div><label>End</label><input name="end_date" type="date"/></div></div><label>Reason</label><input name="reason"/>`,
+      async(bg,close)=>{ const s=bg.querySelector("[name=start_date]").value,e=bg.querySelector("[name=end_date]").value; if(!s||!e) throw new Error("Both dates required.");
+        await api("/api/blackouts",{method:"POST",body:{start_date:s,end_date:e,reason:val(bg,"reason")||null}}); toast("Blackout added.","ok"); close(); render(); });
+    document.querySelectorAll("[data-dl]").forEach(b=>b.onclick=async()=>{ await api(`/api/limits/${b.dataset.dl}`,{method:"DELETE"}); render(); });
+    document.querySelectorAll("[data-dr]").forEach(b=>b.onclick=async()=>{ await api(`/api/auto-pause-rules/${b.dataset.dr}`,{method:"DELETE"}); render(); });
+    document.querySelectorAll("[data-db]").forEach(b=>b.onclick=async()=>{ await api(`/api/blackouts/${b.dataset.db}`,{method:"DELETE"}); render(); });
+  };
+
+  V.budgets = async () => {
+    const summary = await api("/api/budgets/summary");
+    const admin = state.user.startsWith("admin@")||state.user.startsWith("manager@");
+    let h = `<div class="toolbar"><b>Budgets</b><span class="spacer"></span>${admin?`<button class="btn sm" id="addB">+ Add budget</button>`:""}</div>`;
+    if(!summary.length) h += `<div class="empty">No budgets set. Add daily / campaign / platform caps to control spend.</div>`;
+    else h += `<div class="cardgrid">`+summary.map(b=>{ const over=b.spent>=b.amount; return `<div class="vcard"><h4>${esc(b.scope)} · ${esc(b.period)} ${pill(b.cap_type)}</h4>
+      <div class="muted" style="font-size:13px">${b.scope_ref_value?esc(b.scope_ref_value):b.scope_ref_id?"campaign #"+b.scope_ref_id:"all"}</div>
+      <div style="font-size:22px;font-weight:700;margin:8px 0">${money(b.spent)} <span class="muted" style="font-size:14px;font-weight:400">/ ${money(b.amount)}</span></div>
+      <div style="height:8px;background:var(--panel-2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${Math.min(100,b.used_pct)}%;background:${over?"var(--bad)":b.used_pct>80?"var(--warn)":"var(--good)"}"></div></div>
+      <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted">${b.used_pct}% used</span>${admin?`<button class="btn ghost sm" data-dbg="${b.budget_id}">Delete</button>`:""}</div></div>`; }).join("")+`</div>`;
+    $("view").innerHTML=h;
+    if($("addB")) $("addB").onclick=()=>modal("Add budget",
+      `<label>Scope</label><select name="scope"><option value="global">Global</option><option value="platform">Platform</option><option value="campaign">Campaign</option></select>
+       <div class="grid2"><div><label>Platform (if platform)</label><select name="scope_ref_value"><option value="">—</option>${opts(PLATFORMS)}</select></div><div><label>Campaign id (if campaign)</label><input name="scope_ref_id" type="number"/></div></div>
+       <div class="grid2"><div><label>Period</label><select name="period">${opts(PERIODS)}</select></div><div><label>Amount ($)</label><input name="amount" type="number" step="any"/></div></div>
+       <label>Cap type</label><select name="cap_type"><option value="hard">Hard (pauses ads at cap)</option><option value="soft">Soft (alert)</option></select>`,
+      async(bg,close)=>{ const body={scope:val(bg,"scope"),period:val(bg,"period"),amount:parseFloat(val(bg,"amount")),cap_type:val(bg,"cap_type"),scope_ref_value:val(bg,"scope_ref_value")||null,scope_ref_id:val(bg,"scope_ref_id")?parseInt(val(bg,"scope_ref_id"),10):null};
+        if(!body.amount) throw new Error("Amount required."); await api("/api/budgets",{method:"POST",body}); toast("Budget added.","ok"); close(); render(); });
+    document.querySelectorAll("[data-dbg]").forEach(b=>b.onclick=async()=>{ await api(`/api/budgets/${b.dataset.dbg}`,{method:"DELETE"}); render(); });
+  };
+
+  V.connections = async () => {
+    const conns = await api("/api/connections");
+    const admin = state.user.startsWith("admin@")||state.user.startsWith("manager@");
+    const byPlat = Object.fromEntries(conns.map(c=>[c.platform,c]));
+    $("view").innerHTML = `<p class="sub">Connect ad accounts. In <b>sandbox</b> mode posting is simulated (no real spend); switch to <b>live</b> once a real adapter + credentials are in place. YouTube runs through the Google connection.</p>
+      <div class="cardgrid">`+PLATFORMS.map(([pv,pl])=>{ const c=byPlat[pv];
+        return `<div class="vcard"><h4>${esc(pl)}</h4>
+          ${c?`<div class="field"><div class="fk">Account</div><div class="fv">${esc(c.account_name||"—")}</div></div>
+             <div class="field"><div class="fk">Token</div><div class="fv">${esc(c.token_preview||"—")}</div></div>
+             <div class="row" style="gap:8px;margin:6px 0">${pill(c.mode)} ${pill(c.status)}</div>`
+            :`<div class="muted" style="margin:8px 0">Not connected.</div>`}
+          ${admin?`<div class="row" style="gap:8px"><button class="btn ghost sm" data-conn="${pv}">${c?"Update":"Connect"}</button>${c?`<button class="btn ghost sm" data-disc="${pv}">Disconnect</button>`:""}</div>`:""}</div>`; }).join("")+`</div>`;
+    document.querySelectorAll("[data-conn]").forEach(b=>b.onclick=()=>{ const pv=b.dataset.conn; const c=byPlat[pv];
+      modal(`Connect ${platLabel(pv)}`,
+        `<label>Account name</label><input name="account_name" value="${esc(c?.account_name||"")}"/>
+         <label>Ad account id</label><input name="external_account_id" value="${esc(c?.external_account_id||"")}"/>
+         <label>Access token ${c?"(leave blank to keep)":""}</label><input name="access_token" placeholder="stored encrypted, shown masked"/>
+         <label>Mode</label><select name="mode"><option value="sandbox"${c?.mode!=="live"?" selected":""}>Sandbox (simulated)</option><option value="live"${c?.mode==="live"?" selected":""}>Live (real posting)</option></select>`,
+        async(bg,close)=>{ const body={platform:pv,account_name:val(bg,"account_name")||null,external_account_id:val(bg,"external_account_id")||null,mode:val(bg,"mode")}; const tok=val(bg,"access_token"); if(tok) body.access_token=tok;
+          await api("/api/connections",{method:"PUT",body}); toast("Connection saved.","ok"); close(); render(); }); });
+    document.querySelectorAll("[data-disc]").forEach(b=>b.onclick=async()=>{ await api(`/api/connections/${b.dataset.disc}`,{method:"DELETE"}); toast("Disconnected.","ok"); render(); });
+  };
+
+  // ---------- boot ----------
+  async function render(){ const v=V[state.tab]; if(!v){ $("view").innerHTML=`<div class="empty">Coming soon.</div>`; return; }
+    $("view").innerHTML=`<div class="muted"><span class="spinner"></span>Loading…</div>`;
+    try{ await v(); }catch(err){ $("view").innerHTML=`<div class="banner stop">${esc(err.message)}</div>`; } }
+
+  $("userPick").innerHTML = USERS.map(([e,l])=>`<option value="${e}"${e===state.user?" selected":""}>${esc(l)}</option>`).join("");
+  $("userPick").onchange = (e)=>{ state.user=e.target.value; localStorage.setItem("mam_user",state.user); refreshChrome(); render(); };
+  $("bell").onclick = ()=>{ const notes=state._notes||[]; modal("Notifications",
+    notes.length?notes.map(n=>`<div class="field"><div class="fk">${esc(n.type.replace(/_/g," "))} · ${fmtDT(n.created_at)}</div><div class="fv">${esc(n.message)}</div></div>`).join(""):`<div class="empty">No notifications.</div>`,
+    async(bg,close)=>close(),"Close"); };
+  $("estop").onclick = async ()=>{ const on=$("estop").classList.contains("on");
+    if(!on && !confirm("Activate Emergency Stop? This pauses ALL live ads and blocks new posting.")) return;
+    try{ await api("/api/settings/emergency-stop",{method:"POST",body:{active:!on}}); toast(on?"Emergency stop cleared.":"EMERGENCY STOP activated.", on?"ok":"err"); await refreshChrome(); render(); }catch(e){toast(e.message,"err");} };
+
+  renderNav(); go("dashboard"); refreshChrome();
+  setInterval(refreshChrome, 20000);
   </script>
 </body>
 </html>
