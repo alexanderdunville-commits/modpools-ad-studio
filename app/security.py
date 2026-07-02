@@ -15,12 +15,12 @@ from cryptography.fernet import Fernet, InvalidToken
 
 
 def _load_key() -> bytes:
-    env = os.environ.get("SECRET_ENCRYPTION_KEY")
-    if env:
-        return env.encode()
-    # Dev fallback: deterministic key so encrypted values survive restarts.
-    # NOT for production — set SECRET_ENCRYPTION_KEY there.
-    digest = hashlib.sha256(b"modpools-ad-manager-dev-key").digest()
+    # Derive a valid Fernet key from any passphrase, so SECRET_ENCRYPTION_KEY can
+    # be any string (or an auto-generated host secret). Falls back to a stable dev
+    # passphrase locally so encrypted values survive restarts — set a real
+    # SECRET_ENCRYPTION_KEY in production.
+    passphrase = os.environ.get("SECRET_ENCRYPTION_KEY") or "modpools-ad-manager-dev-key"
+    digest = hashlib.sha256(passphrase.encode()).digest()
     return base64.urlsafe_b64encode(digest)
 
 

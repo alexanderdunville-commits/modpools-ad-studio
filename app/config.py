@@ -29,6 +29,7 @@ class Settings:
     model: str
     effort: str
     database_url: str
+    app_password: str | None
 
     @property
     def api_key_configured(self) -> bool:
@@ -47,4 +48,6 @@ def get_settings() -> Settings:
         effort=effort,
         database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL).strip()
         or DEFAULT_DATABASE_URL,
+        # When set, the whole app is behind an HTTP Basic password (for hosting).
+        app_password=os.environ.get("APP_PASSWORD") or None,
     )

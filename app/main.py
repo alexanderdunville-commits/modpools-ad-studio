@@ -8,11 +8,13 @@ audit log) and role-based access on top of the AI generator.
 
 from __future__ import annotations
 
+import base64
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .brands import list_brands
@@ -49,6 +51,29 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Modpools Ad Manager", version="1.2.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def password_gate(request: Request, call_next):
+    """When APP_PASSWORD is set (e.g. on a hosted deployment), require an HTTP
+    Basic password for the whole app. `/api/health` stays open for uptime checks.
+    With no APP_PASSWORD (local dev), the app is open."""
+    password = get_settings().app_password
+    if password and request.url.path != "/api/health":
+        supplied = None
+        header = request.headers.get("Authorization", "")
+        if header.startswith("Basic "):
+            try:
+                _, _, supplied = base64.b64decode(header[6:]).decode().partition(":")
+            except Exception:
+                supplied = None
+        if supplied is None or not secrets.compare_digest(supplied, password):
+            return Response(
+                "Password required.",
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="Modpools Ad Manager"'},
+            )
+    return await call_next(request)
 
 
 @app.get("/api/health")
