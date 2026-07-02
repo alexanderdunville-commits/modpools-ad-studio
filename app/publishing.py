@@ -1,78 +1,125 @@
-"""Phase 2 — ad-platform publishing (stub adapters).
+"""Ad-platform publishing adapters.
 
-Scaffolding for pushing generated campaigns to Meta (Facebook/Instagram) and
-Google Ads. The adapter interface is defined; the `publish()` methods are not
-implemented yet. To build this out, implement each `publish()` against the
-relevant marketing API — each needs OAuth credentials and an ad-account ID.
+One interface, one implementation per network. The **sandbox** adapter
+(`MockAdapter`) simulates posting so the whole pipeline — scheduling, limit and
+budget enforcement, posting, pausing — runs end-to-end without real ad accounts.
+The real adapters (Meta, Google, TikTok, Pinterest, LinkedIn) are stubs behind
+the same interface: implement each against its marketing API when you connect a
+live account (each needs OAuth credentials + an ad-account ID).
 
-See the Roadmap in the README.
+`get_adapter(platform, mode)` returns the sandbox adapter for `mode="sandbox"`
+and the real adapter for `mode="live"`.
 """
 
 from __future__ import annotations
 
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from .models import AdVariation, Platform
+from .enums import ConnectionMode
+
+if TYPE_CHECKING:  # avoid import cycle (db_models imports nothing from here)
+    from .db_models import Ad
 
 
 @dataclass
 class PublishResult:
-    """Returned by a successful publish — what the platform created."""
-
-    platform: Platform
-    campaign_id: str
+    external_post_id: str
     external_url: str | None = None
 
 
 class PublishingAdapter(ABC):
     """Common interface every ad-platform adapter implements."""
 
-    #: Platforms this adapter can publish to.
-    platforms: tuple[Platform, ...] = ()
-
-    def __init__(self, *, access_token: str, ad_account_id: str) -> None:
-        self.access_token = access_token
-        self.ad_account_id = ad_account_id
+    @abstractmethod
+    def publish(self, ad: "Ad") -> PublishResult:
+        """Create the ad on the platform. Returns the external post id."""
 
     @abstractmethod
-    def publish(
-        self, *, variation: AdVariation, platform: Platform, campaign_name: str
-    ) -> PublishResult:
-        """Create a campaign/ad from a generated variation. Returns the result."""
+    def pause(self, external_post_id: str) -> bool:
+        """Pause a live ad on the platform."""
+
+    @abstractmethod
+    def resume(self, external_post_id: str) -> bool:
+        """Resume a paused ad on the platform."""
 
 
-class MetaAdapter(PublishingAdapter):
-    """Facebook + Instagram via the Meta Marketing API."""
+class MockAdapter(PublishingAdapter):
+    """Sandbox adapter — simulates posting/pausing. No real spend, no network."""
 
-    platforms = (Platform.facebook, Platform.instagram)
+    def publish(self, ad: "Ad") -> PublishResult:
+        ext = f"mock_{ad.platform}_{ad.id}_{uuid.uuid4().hex[:8]}"
+        return PublishResult(external_post_id=ext, external_url=f"https://sandbox.local/{ext}")
 
-    def publish(
-        self, *, variation: AdVariation, platform: Platform, campaign_name: str
-    ) -> PublishResult:
+    def pause(self, external_post_id: str) -> bool:
+        return True
+
+    def resume(self, external_post_id: str) -> bool:
+        return True
+
+
+class _RealAdapterStub(PublishingAdapter):
+    """Base for not-yet-implemented live adapters."""
+
+    api_name = "the platform"
+    docs_url = ""
+
+    def publish(self, ad: "Ad") -> PublishResult:
         raise NotImplementedError(
-            "MetaAdapter.publish is not implemented yet. Implement it against the "
-            "Meta Marketing API (https://developers.facebook.com/docs/marketing-apis/)."
+            f"Live posting for this platform is not implemented yet. Implement "
+            f"against {self.api_name} ({self.docs_url}). Until then, keep the "
+            f"connection in sandbox mode."
         )
 
+    def pause(self, external_post_id: str) -> bool:
+        raise NotImplementedError
 
-class GoogleAdsAdapter(PublishingAdapter):
-    """Google Search + Display via the Google Ads API."""
-
-    platforms = (Platform.google_search, Platform.google_display)
-
-    def publish(
-        self, *, variation: AdVariation, platform: Platform, campaign_name: str
-    ) -> PublishResult:
-        raise NotImplementedError(
-            "GoogleAdsAdapter.publish is not implemented yet. Implement it against "
-            "the Google Ads API (https://developers.google.com/google-ads/api/docs)."
-        )
+    def resume(self, external_post_id: str) -> bool:
+        raise NotImplementedError
 
 
-def adapter_for(platform: Platform, **credentials: str) -> PublishingAdapter:
-    """Return the adapter that handles `platform`, constructed with credentials."""
-    for adapter_cls in (MetaAdapter, GoogleAdsAdapter):
-        if platform in adapter_cls.platforms:
-            return adapter_cls(**credentials)  # type: ignore[arg-type]
-    raise ValueError(f"No publishing adapter for platform '{platform}'.")
+class MetaAdapter(_RealAdapterStub):
+    api_name = "the Meta Marketing API"
+    docs_url = "https://developers.facebook.com/docs/marketing-apis/"
+
+
+class GoogleAdsAdapter(_RealAdapterStub):
+    api_name = "the Google Ads API (covers Search, Display, and YouTube)"
+    docs_url = "https://developers.google.com/google-ads/api/docs"
+
+
+class TikTokAdapter(_RealAdapterStub):
+    api_name = "the TikTok Marketing API"
+    docs_url = "https://business-api.tiktok.com/portal/docs"
+
+
+class PinterestAdapter(_RealAdapterStub):
+    api_name = "the Pinterest Ads API"
+    docs_url = "https://developers.pinterest.com/docs/api/v5/"
+
+
+class LinkedInAdapter(_RealAdapterStub):
+    api_name = "the LinkedIn Marketing API"
+    docs_url = "https://learn.microsoft.com/linkedin/marketing/"
+
+
+# platform value -> real adapter. YouTube is served by Google Ads (video campaigns).
+_REAL_ADAPTERS: dict[str, type[PublishingAdapter]] = {
+    "facebook": MetaAdapter,
+    "instagram": MetaAdapter,
+    "google_search": GoogleAdsAdapter,
+    "google_display": GoogleAdsAdapter,
+    "linkedin": LinkedInAdapter,
+}
+
+
+def get_adapter(platform: str, mode: str = ConnectionMode.sandbox.value) -> PublishingAdapter:
+    """Return the adapter for a platform. Sandbox mode always uses the mock."""
+    if mode != ConnectionMode.live.value:
+        return MockAdapter()
+    adapter_cls = _REAL_ADAPTERS.get(platform)
+    if adapter_cls is None:
+        raise ValueError(f"No live adapter registered for platform '{platform}'.")
+    return adapter_cls()

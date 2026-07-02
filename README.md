@@ -121,15 +121,26 @@ app/
   analytics.py   Performance analysis (stub)
   config.py      Model + settings from the environment
   db.py          Database engine/session + startup (SQLAlchemy)
-  db_models.py   ORM models: users, campaigns, ads, approvals, audit log
-  enums.py       Status/role enums
+  db_models.py   ORM models (users, campaigns, ads, schedules, limits,
+                 budgets, auto-pause rules, blackouts, metrics, …)
+  enums.py       Status/role/scope enums
   auth.py        Current-user + role-based access control
   audit.py       Audit-log helper
+  security.py    Token encryption + masking
+  engine.py      Enforcement engine: poster + rule engine + emergency stop
   schemas.py     Ad Manager API schemas
   routers/
-    campaigns.py Campaigns + save AI ads into a campaign
-    ads.py       Ad CRUD + submit for approval
-    approvals.py Approval queue + audit endpoint
+    dashboard.py   Dashboard rollup
+    campaigns.py   Campaigns + save AI ads into a campaign
+    ads.py         Ad CRUD + submit for approval
+    approvals.py   Approval queue + audit endpoint
+    schedules.py   Scheduling / calendar feed
+    controls.py    Ad Limits: limits, blackout dates, auto-pause rules
+    budgets.py     Budgets + spend-vs-budget summary
+    connections.py Platform connections (encrypted tokens)
+    library.py     Audiences + creative library
+    analytics.py   Metrics ingest + KPI rollups
+    settings.py    Settings, emergency stop, API keys, engine tick
   static/
     index.html   The web UI (single page, no build step)
 ```
@@ -152,37 +163,74 @@ app/
 | `GET` | `/api/approvals` | The pending-approval queue |
 | `POST` | `/api/ads/{id}/approve` · `/reject` · `/request-changes` | Approve, reject (reason required), or request changes |
 | `GET` | `/api/audit` | Recent audit-log entries |
+| `POST` `GET` | `/api/schedules` | Schedule an approved ad / calendar feed (`POST /{id}/cancel`) |
+| `POST` `GET` `DELETE` | `/api/limits` | Posting/spend limits |
+| `POST` `GET` `DELETE` | `/api/blackouts` | Blackout dates |
+| `POST` `GET` `DELETE` | `/api/auto-pause-rules` | Auto-pause rules (CPL, budget, frequency, CTR, zero-conversions) |
+| `POST` `GET` `DELETE` | `/api/budgets` | Budgets (`GET /summary` for spend-vs-budget) |
+| `PUT` `GET` `DELETE` | `/api/connections` | Platform connections (tokens encrypted, returned masked) |
+| `POST` `GET` `DELETE` | `/api/audiences` · `/api/creatives` | Audience Builder + Creative Library |
+| `POST` | `/api/metrics` | Ingest daily ad metrics (platform sync / CRM webhook) |
+| `GET` | `/api/analytics/summary` | KPI rollup (CTR, CPL, ROAS, funnel) |
+| `GET` `PATCH` | `/api/settings` | App settings (`PUT /api/settings/api-keys` to store a key) |
+| `POST` | `/api/settings/emergency-stop` | Activate / clear the global Emergency Stop |
+| `POST` | `/api/engine/tick` | Run the poster + rule engine once (admin) |
+| `GET` | `/api/dashboard` · `/api/notifications` | Dashboard rollup / alerts feed |
 
 ---
 
-## Ad Manager (Phase 1)
+## Ad Manager
 
-Beyond one-off generation, the app now persists work and gates it behind review
-— the foundation of the **Modpools Ad Manager** (full plan in
+The app is the **Modpools Ad Manager** — generate → organize → limit → schedule
+→ approve → post → track, review-first throughout (full plan in
 [`docs/modpools-ad-manager-product-plan.md`](docs/modpools-ad-manager-product-plan.md)).
 
-- **Campaigns** organize ads by offer, market, product size, season, and audience.
-- **Ads** are saved (from AI generation or by hand), edited, and submitted for review.
-- **Approval queue** — nothing is "approved" until an approver signs off; rejects
-  require a reason. Every action is written to an **audit log**.
+- **Campaigns / ads / approvals** — organize ads by offer, market, product size,
+  season, audience; nothing is "approved" until an approver signs off (rejects
+  require a reason). Every action is written to an **audit log**.
+- **Ad Limits** — posting caps (per day/week/month, max active per platform,
+  min gap between posts), spend caps, blackout dates, and **auto-pause rules**
+  (CPL too high, budget reached, frequency, CTR, zero-conversions). Limits
+  resolve most-specific-first: campaign → platform → global.
+- **Budgets** — daily/weekly/monthly/campaign/platform budgets with live
+  spend-vs-budget; hard caps are enforced before posting *and* pause live ads
+  when reached.
+- **Scheduling** — queue approved ads; the calendar feed drives the Ad Calendar.
+- **Emergency Stop** — one switch pauses every live ad and blocks new posting.
+- **Enforcement engine** (`app/engine.py`) — a poster and a rule engine run the
+  guardrails. In production they run on a schedule (Celery/cron); locally,
+  `POST /api/engine/tick` runs them once so you can drive/verify the pipeline.
 - **Roles** — `admin`, `manager`, `creator`, `approver`, `analyst`, enforced
-  server-side. In local dev, pick who you're acting as with an `X-User-Email`
-  header (e.g. `creator@modpools.local`); the default is the seeded admin.
+  server-side. In local dev, choose who you're acting as with an `X-User-Email`
+  header (e.g. `creator@modpools.local`); default is the seeded admin.
   Production plugs real SSO into `app/auth.py`.
 - **Storage** — SQLAlchemy; SQLite by default, Postgres via `DATABASE_URL`.
-  Tables are created on startup; the dev users are seeded automatically.
+  Tables + dev users seed on startup.
+
+### Posting: sandbox vs. live
+
+Every platform connection has a **mode**. `sandbox` (default) uses a mock
+adapter that simulates posting/pausing — the whole pipeline (limits, budgets,
+auto-pause, emergency stop) runs end-to-end with no real spend. `live` uses the
+real platform adapter; those are **stubs** today (`app/publishing.py`) — implement
+each against its marketing API and add credentials to go live. Note: YouTube ads
+run through the Google Ads adapter (video campaigns), not a separate connection.
 
 ---
 
 ## Roadmap
 
-- **Phase 2 — Publishing:** implement the `publish()` methods in
-  `app/publishing.py` against the Meta Marketing API and Google Ads API. Each
-  needs OAuth credentials and an ad-account ID; the adapter interface is already
-  defined.
-- **Phase 3 — Analytics:** feed `CampaignMetrics` from your ad accounts into
-  `app/analytics.py` and send them to Claude with an analyst prompt for written
-  budget/copy recommendations.
+- **Live platform adapters:** implement `publish()/pause()/resume()` in
+  `app/publishing.py` for Meta, Google (Search/Display/YouTube), TikTok,
+  Pinterest, and LinkedIn against their marketing APIs (OAuth + ad-account IDs).
+- **Real metrics sync:** replace manual `/api/metrics` ingest with a scheduled
+  pull from each connected platform (write into the same `metrics` table).
+- **AI image creative:** turn each ad's `visual_concept` into a generated image
+  (requires a dedicated image model — Claude generates text, not images).
+- **Background workers:** run `app/engine.py`'s poster + rule engine on a
+  schedule (Celery beat / cron) instead of the manual tick.
+- **Manager UI:** browser screens for campaigns, approvals, limits, budgets,
+  and the calendar (the current web page is the AI generator).
 
 ---
 

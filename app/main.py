@@ -25,7 +25,19 @@ from .models import (
     GenerateRequest,
     GenerateResponse,
 )
-from .routers import ads, approvals, campaigns
+from .routers import (
+    ads,
+    analytics,
+    approvals,
+    budgets,
+    campaigns,
+    connections,
+    controls,
+    dashboard,
+    library,
+    schedules,
+    settings,
+)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -36,7 +48,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Modpools Ad Manager", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="Modpools Ad Manager", version="1.2.0", lifespan=lifespan)
 
 
 @app.get("/api/health")
@@ -97,6 +109,14 @@ def generate_bulk_route(req: BulkGenerateRequest) -> BulkGenerateResponse:
 app.include_router(campaigns.router)
 app.include_router(ads.router)
 app.include_router(approvals.router)
+app.include_router(schedules.router)
+app.include_router(controls.router)
+app.include_router(budgets.router)
+app.include_router(connections.router)
+app.include_router(library.router)
+app.include_router(analytics.router)
+app.include_router(settings.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/")

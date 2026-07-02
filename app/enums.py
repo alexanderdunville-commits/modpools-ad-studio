@@ -44,3 +44,77 @@ class ApprovalDecision(str, Enum):
 
 # Which ad statuses may transition to `pending` when a creator submits for review.
 SUBMITTABLE = {AdStatus.draft, AdStatus.changes_requested, AdStatus.rejected}
+
+
+class ScheduleStatus(str, Enum):
+    queued = "queued"
+    posting = "posting"
+    posted = "posted"
+    failed = "failed"
+    canceled = "canceled"
+    skipped = "skipped"       # blocked by a limit/budget/blackout at post time
+
+
+class Scope(str, Enum):
+    global_ = "global"
+    platform = "platform"
+    campaign = "campaign"
+    ad = "ad"
+
+
+class LimitMetric(str, Enum):
+    max_ads_day = "max_ads_day"
+    max_ads_week = "max_ads_week"
+    max_ads_month = "max_ads_month"
+    max_active_per_platform = "max_active_per_platform"
+    min_gap_minutes = "min_gap_minutes"
+    max_spend_day = "max_spend_day"
+    max_spend_campaign = "max_spend_campaign"
+    max_spend_platform = "max_spend_platform"
+
+
+class CapType(str, Enum):
+    soft = "soft"     # alert only
+    hard = "hard"     # enforced — cannot exceed
+
+
+class BudgetPeriod(str, Enum):
+    daily = "daily"
+    weekly = "weekly"
+    monthly = "monthly"
+    lifetime = "lifetime"
+
+
+class AutoPauseRuleType(str, Enum):
+    cpl = "cpl"                       # cost per lead too high
+    budget = "budget"                # period spend reached budget
+    frequency = "frequency"          # audience fatigue
+    ctr = "ctr"                      # click-through collapsed
+    zero_conversions = "zero_conversions"  # spend with no conversions
+
+
+class AutoPauseAction(str, Enum):
+    pause = "pause"
+    alert = "alert"
+
+
+class ConnectionMode(str, Enum):
+    sandbox = "sandbox"   # uses the mock adapter — safe, no real spend
+    live = "live"         # uses the real platform adapter (needs credentials)
+
+
+class ConnectionStatus(str, Enum):
+    connected = "connected"
+    disconnected = "disconnected"
+    token_expiring = "token_expiring"
+    error = "error"
+
+
+class CreativeType(str, Enum):
+    image = "image"
+    video = "video"
+    headline = "headline"
+    caption = "caption"
+    cta = "cta"
+    testimonial = "testimonial"
+    before_after = "before_after"

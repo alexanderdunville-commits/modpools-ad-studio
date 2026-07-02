@@ -48,6 +48,7 @@ def init_db() -> None:
 
     Base.metadata.create_all(engine)
     _seed_dev_users()
+    _seed_settings()
 
 
 def _seed_dev_users() -> None:
@@ -70,3 +71,13 @@ def _seed_dev_users() -> None:
             [User(name=n, email=e, role=r.value) for n, e, r in seed]
         )
         db.commit()
+
+
+def _seed_settings() -> None:
+    from .db_models import Setting
+
+    with SessionLocal() as db:
+        if db.get(Setting, 1) is None:
+            db.add(Setting(id=1, emergency_stop=False, company={},
+                           notifications={}, api_keys_enc={}))
+            db.commit()
