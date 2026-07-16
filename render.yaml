@@ -6,7 +6,7 @@ services:
   - type: web
     name: modpools-ad-manager
     runtime: python
-    branch: claude/new-session-3r36ei
+    branch: main
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
