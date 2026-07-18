@@ -50,6 +50,19 @@ PLATFORM_GUIDANCE: dict[Platform, str] = {
         "chars, strong visual concept since the creative carries the message. "
         "No hashtags — return an empty hashtags list."
     ),
+    Platform.youtube: (
+        "YouTube video ad (bought through Google Ads). The primary_text is a short "
+        "voiceover/script for a 15-30 second spot — hook the viewer in the first 5 "
+        "seconds, before the skip button. Headline <= 30 chars. Description is the "
+        "companion banner line. The visual_concept is a brief shot list for the "
+        "video. No hashtags — return an empty hashtags list."
+    ),
+    Platform.tiktok: (
+        "TikTok in-feed video ad. Native, fast, and authentic — not polished "
+        "ad-speak. The primary_text is a short spoken/on-screen script that leads "
+        "with a 1-2 second hook. The visual_concept describes a vertical (9:16) "
+        "video, ideally UGC-style. Use 3-5 relevant, trend-aware hashtags."
+    ),
     Platform.linkedin: (
         "LinkedIn sponsored content. Professional, credibility-led tone. Primary "
         "text can be a couple of sentences focused on business value. Hashtags "

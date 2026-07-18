@@ -16,6 +16,8 @@ class Platform(str, Enum):
     instagram = "instagram"
     google_search = "google_search"
     google_display = "google_display"
+    youtube = "youtube"
+    tiktok = "tiktok"
     linkedin = "linkedin"
 
     @property
@@ -25,6 +27,8 @@ class Platform(str, Enum):
             Platform.instagram: "Instagram",
             Platform.google_search: "Google Search",
             Platform.google_display: "Google Display",
+            Platform.youtube: "YouTube",
+            Platform.tiktok: "TikTok",
             Platform.linkedin: "LinkedIn",
         }[self]
 

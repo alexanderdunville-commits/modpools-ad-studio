@@ -111,6 +111,8 @@ _REAL_ADAPTERS: dict[str, type[PublishingAdapter]] = {
     "instagram": MetaAdapter,
     "google_search": GoogleAdsAdapter,
     "google_display": GoogleAdsAdapter,
+    "youtube": GoogleAdsAdapter,
+    "tiktok": TikTokAdapter,
     "linkedin": LinkedInAdapter,
 }
 
