@@ -152,11 +152,15 @@
   const state = { user: localStorage.getItem("mam_user") || "admin@modpools.local", tab: "dashboard" };
   const isAdmin = () => state.user.startsWith("admin@");
   const canApprove = () => ["admin@","manager@","approver@"].some(p=>state.user.startsWith(p));
+  const canEdit = () => ["admin@","manager@","creator@"].some(p=>state.user.startsWith(p));
   const platLabel = (v)=> (PLATFORMS.find(p=>p[0]===v)||[v,v])[1];
+  const AUDIENCE_PRESETS = ["Luxury homeowners","Airbnb / short-term-rental owners","Vacation-home owners","Compact-backyard buyers","Requested pricing (retargeting)"];
+  const CREATIVE_TYPES = [["image","Image"],["video","Video"],["before_after","Before / after"],["testimonial","Testimonial"],["headline","Headline"],["caption","Caption"],["cta","CTA"]];
 
   const NAV_MAIN = [
     ["dashboard","▦","Dashboard"], ["create","✎","Create Ads"], ["campaigns","▤","Campaigns"],
-    ["approvals","✓","Approvals"], ["calendar","▣","Ad Calendar"], ["analytics","📈","Analytics"],
+    ["approvals","✓","Approvals"], ["calendar","▣","Ad Calendar"],
+    ["audiences","◎","Audiences"], ["creatives","▧","Creative Library"], ["analytics","📈","Analytics"],
   ];
   const NAV_ADMIN = [ ["limits","⛒","Ad Limits"], ["budgets","$","Budget Manager"], ["connections","⚭","Connections"] ];
   const TITLES = Object.fromEntries([...NAV_MAIN,...NAV_ADMIN].map(n=>[n[0],n[2]]));
@@ -478,6 +482,67 @@
         async(bg,close)=>{ const body={platform:pv,account_name:val(bg,"account_name")||null,external_account_id:val(bg,"external_account_id")||null,mode:val(bg,"mode")}; const tok=val(bg,"access_token"); if(tok) body.access_token=tok;
           await api("/api/connections",{method:"PUT",body}); toast("Connection saved.","ok"); close(); render(); }); });
     document.querySelectorAll("[data-disc]").forEach(b=>b.onclick=async()=>{ await api(`/api/connections/${b.dataset.disc}`,{method:"DELETE"}); toast("Disconnected.","ok"); render(); });
+  };
+
+  V.audiences = async () => {
+    const auds = await api("/api/audiences");
+    const edit = canEdit();
+    let h = `<p class="sub">Saved audiences the AI writes toward and your campaigns target.</p>
+      <div class="toolbar"><button class="btn" id="newAud" ${edit?"":"disabled"}>+ New audience</button><span class="spacer"></span><span class="muted">${auds.length} audience(s)</span></div>`;
+    if(!auds.length) h += `<div class="empty">No audiences yet.${edit?" Add one below, or use a quick-start.":""}</div>`;
+    else h += `<div class="cardgrid">`+auds.map(a=>`<div class="vcard"><h4>${esc(a.name)}</h4>
+      ${a.description?`<div class="field"><div class="fv">${esc(a.description)}</div></div>`:""}
+      <div class="row" style="gap:6px;margin:6px 0"><span class="pill">${esc((a.source_type||"custom").replace(/_/g," "))}</span></div>
+      ${(a.interests&&a.interests.length)?`<div class="tags">${a.interests.map(i=>`<span class="tag">${esc(i)}</span>`).join("")}</div>`:""}
+      ${edit?`<button class="btn ghost sm" data-da="${a.id}" style="margin-top:10px">Delete</button>`:""}</div>`).join("")+`</div>`;
+    if(edit){
+      const existing = new Set(auds.map(a=>a.name));
+      const chips = AUDIENCE_PRESETS.filter(p=>!existing.has(p));
+      if(chips.length) h += `<div class="card" style="margin-top:16px"><div class="muted" style="font-size:13px;margin-bottom:8px">Quick-start (Modpools audiences)</div>
+        <div class="row" style="gap:8px">${chips.map(p=>`<button class="btn ghost sm" data-preset="${esc(p)}">+ ${esc(p)}</button>`).join("")}</div></div>`;
+    }
+    $("view").innerHTML=h;
+    async function add(name, description, source_type, interests){
+      await api("/api/audiences",{method:"POST",body:{name,description:description||null,source_type:source_type||"custom",interests:interests&&interests.length?interests:null}});
+      toast("Audience saved.","ok"); render();
+    }
+    if($("newAud")) $("newAud").onclick=()=>modal("New audience",
+      `<label>Name</label><input name="name" placeholder="Luxury homeowners"/>
+       <label>Description <span class="muted">(optional)</span></label><textarea name="description" placeholder="Who this audience is, for the AI to write toward."></textarea>
+       <label>Type</label><select name="source_type"><option value="custom">Custom</option><option value="retargeting">Retargeting</option><option value="lookalike">Lookalike</option></select>
+       <label>Interests <span class="muted">(comma-separated, optional)</span></label><input name="interests" placeholder="pools, luxury home, backyard design"/>`,
+      async(bg,close)=>{ const name=val(bg,"name"); if(!name) throw new Error("Name is required.");
+        const interests=val(bg,"interests").split(",").map(s=>s.trim()).filter(Boolean);
+        await add(name,val(bg,"description"),val(bg,"source_type"),interests); close(); });
+    document.querySelectorAll("[data-preset]").forEach(b=>b.onclick=()=>add(b.dataset.preset,"","custom",[]));
+    document.querySelectorAll("[data-da]").forEach(b=>b.onclick=async()=>{ await api(`/api/audiences/${b.dataset.da}`,{method:"DELETE"}); render(); });
+  };
+
+  V.creatives = async () => {
+    const items = await api("/api/creatives");
+    const edit = canEdit();
+    let h = `<p class="sub">Reusable images, videos, headlines, testimonials and before/after visuals.</p>
+      <div class="toolbar"><button class="btn" id="newCr" ${edit?"":"disabled"}>+ New creative</button><span class="spacer"></span><span class="muted">${items.length} item(s)</span></div>`;
+    if(!items.length) h += `<div class="empty">Nothing in the library yet.</div>`;
+    else h += `<div class="cardgrid">`+items.map(c=>`<div class="vcard"><h4>${esc(c.name)} ${c.approved?`<span class="pill approved" style="font-size:11px">approved</span>`:""}</h4>
+      <div class="row" style="gap:6px;margin:4px 0"><span class="pill">${esc((CREATIVE_TYPES.find(t=>t[0]===c.type)||[c.type,c.type])[1])}</span></div>
+      ${c.url?`<div class="field"><div class="fk">Asset</div><div class="fv"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url)}</a></div></div>`:""}
+      ${c.body?`<div class="field"><div class="fv">${esc(c.body)}</div></div>`:""}
+      ${(c.tags&&c.tags.length)?`<div class="tags">${c.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`:""}
+      ${edit?`<div class="row" style="gap:8px;margin-top:10px">${c.approved?"":`<button class="btn good sm" data-ca="${c.id}">Approve</button>`}<button class="btn ghost sm" data-dc="${c.id}">Delete</button></div>`:""}</div>`).join("")+`</div>`;
+    $("view").innerHTML=h;
+    if($("newCr")) $("newCr").onclick=()=>modal("New creative",
+      `<label>Type</label><select name="type">${opts(CREATIVE_TYPES)}</select>
+       <label>Name</label><input name="name" placeholder="Golden-hour backyard hero shot"/>
+       <label>Link to image/video <span class="muted">(for image/video)</span></label><input name="url" placeholder="https://…"/>
+       <label>Text <span class="muted">(for headline/caption/CTA/testimonial)</span></label><textarea name="body"></textarea>
+       <label>Tags <span class="muted">(comma-separated, optional)</span></label><input name="tags" placeholder="summer, 20ft, acrylic-window"/>`,
+      async(bg,close)=>{ const name=val(bg,"name"); if(!name) throw new Error("Name is required.");
+        const tags=val(bg,"tags").split(",").map(s=>s.trim()).filter(Boolean);
+        await api("/api/creatives",{method:"POST",body:{type:val(bg,"type"),name,url:val(bg,"url")||null,body:val(bg,"body")||null,tags}});
+        toast("Creative saved.","ok"); close(); render(); });
+    document.querySelectorAll("[data-ca]").forEach(b=>b.onclick=async()=>{ await api(`/api/creatives/${b.dataset.ca}/approve`,{method:"POST"}); toast("Approved.","ok"); render(); });
+    document.querySelectorAll("[data-dc]").forEach(b=>b.onclick=async()=>{ await api(`/api/creatives/${b.dataset.dc}`,{method:"DELETE"}); render(); });
   };
 
   // ---------- boot ----------
