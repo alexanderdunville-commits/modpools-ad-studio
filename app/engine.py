@@ -42,7 +42,7 @@ from .enums import (
     LimitMetric,
     ScheduleStatus,
 )
-from .publishing import get_adapter
+from .publishing import PublishError, get_adapter
 
 
 # ---------------------------------------------------------------- helpers
@@ -65,11 +65,17 @@ def notify(db: Session, *, type: str, message: str,
                         entity_type=entity_type, entity_id=entity_id))
 
 
-def _connection_mode(db: Session, platform: str) -> str:
-    conn = db.query(PlatformConnection).filter(
+def _connection(db: Session, platform: str) -> PlatformConnection | None:
+    return db.query(PlatformConnection).filter(
         PlatformConnection.platform == platform
     ).first()
-    return conn.mode if conn else ConnectionMode.sandbox.value
+
+
+def _adapter_for(db: Session, platform: str):
+    """Adapter honoring the stored connection: its mode and its credentials."""
+    conn = _connection(db, platform)
+    mode = conn.mode if conn else ConnectionMode.sandbox.value
+    return get_adapter(platform, mode, connection=conn)
 
 
 def effective_limit(db: Session, metric: LimitMetric, *,
@@ -242,7 +248,7 @@ def run_poster(db: Session, *, now: datetime | None = None) -> dict:
                 deferred += 1  # leave queued, retry next tick
             continue
         try:
-            adapter = get_adapter(ad.platform, _connection_mode(db, ad.platform))
+            adapter = _adapter_for(db, ad.platform)
             result = adapter.publish(ad)
             sched.status = ScheduleStatus.posted.value
             sched.posted_at = now
@@ -250,7 +256,7 @@ def run_poster(db: Session, *, now: datetime | None = None) -> dict:
             ad.status = AdStatus.live.value
             db.flush()  # so volume counts in this same tick see this post
             posted += 1
-        except NotImplementedError as exc:
+        except (NotImplementedError, PublishError) as exc:
             sched.status = ScheduleStatus.failed.value
             sched.note = str(exc)
             notify(db, type="post_failed",
@@ -302,11 +308,16 @@ def _pause_ads(db: Session, ads: list[Ad], reason: str) -> int:
         ).order_by(Schedule.posted_at.desc()).first()
         try:
             if sched and sched.external_post_id:
-                get_adapter(ad.platform, _connection_mode(db, ad.platform)).pause(
-                    sched.external_post_id
-                )
+                _adapter_for(db, ad.platform).pause(sched.external_post_id)
         except NotImplementedError:
-            pass
+            pass  # stub platform — nothing live to pause
+        except PublishError as exc:
+            # Local status still flips to paused; tell a human the platform
+            # call failed so they can confirm in the platform's Ads Manager.
+            notify(db, type="pause_failed",
+                   message=f"Ad {ad.id}: platform pause call failed — verify in "
+                           f"Ads Manager. ({exc})",
+                   entity_type="ad", entity_id=ad.id)
         ad.status = AdStatus.paused.value
         notify(db, type="auto_pause", message=f"Ad {ad.id} auto-paused: {reason}",
                entity_type="ad", entity_id=ad.id)

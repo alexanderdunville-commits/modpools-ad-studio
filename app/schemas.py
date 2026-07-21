@@ -83,6 +83,7 @@ class AdUpdate(BaseModel):
     hashtags: list[str] | None = None
     visual_concept: str | None = None
     rationale: str | None = None
+    media_ref: str | None = None   # platform media asset (TikTok video_id)
 
 
 class SaveGeneratedAdsRequest(BaseModel):
@@ -105,6 +106,7 @@ class AdOut(BaseModel):
     hashtags: list[str]
     visual_concept: str
     rationale: str | None
+    media_ref: str | None = None
     status: str
     generated_by_ai: bool
     created_by: str | None
@@ -320,6 +322,9 @@ class ConnectionUpsert(BaseModel):
     access_token: str | None = None    # write-only; stored encrypted
     mode: ConnectionMode = ConnectionMode.sandbox
     scopes: list[str] = Field(default_factory=list)
+    # Non-secret live-posting settings (TikTok: adgroup_id, identity_id,
+    # identity_type, landing_page_url, display_name).
+    config: dict | None = None
 
 
 class ConnectionOut(BaseModel):
@@ -333,6 +338,7 @@ class ConnectionOut(BaseModel):
     mode: str
     status: str
     scopes: list[str]
+    config: dict | None = None
     last_synced_at: datetime | None
     created_at: datetime
 

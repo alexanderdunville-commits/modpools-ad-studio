@@ -75,6 +75,9 @@ class Ad(Base):
     hashtags: Mapped[list] = mapped_column(JSON, default=list)
     visual_concept: Mapped[str] = mapped_column(Text)
     rationale: Mapped[str | None] = mapped_column(Text, default=None)
+    # Platform media asset reference — for TikTok this is the video_id from the
+    # advertiser's asset library (in-feed TikTok ads must have a video).
+    media_ref: Mapped[str | None] = mapped_column(String(200), default=None)
     status: Mapped[str] = mapped_column(String(50), default=AdStatus.draft.value)
     generated_by_ai: Mapped[bool] = mapped_column(default=False)
     created_by: Mapped[str | None] = mapped_column(String(320), default=None)
@@ -159,6 +162,9 @@ class PlatformConnection(Base):
         String(30), default=ConnectionStatus.disconnected.value
     )
     scopes: Mapped[list] = mapped_column(JSON, default=list)
+    # Per-platform live-posting settings (non-secret). TikTok uses:
+    # adgroup_id, identity_id, identity_type, landing_page_url, display_name.
+    config: Mapped[dict | None] = mapped_column(JSON, default=None)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 

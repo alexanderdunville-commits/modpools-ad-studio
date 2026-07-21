@@ -47,8 +47,29 @@ def init_db() -> None:
     from . import db_models  # noqa: F401  (register models on Base.metadata)
 
     Base.metadata.create_all(engine)
+    _ensure_new_columns()
     _seed_dev_users()
     _seed_settings()
+
+
+# Columns added after the first release. `create_all` never alters existing
+# tables, so add them here; the ALTER fails harmlessly when the column exists.
+_NEW_COLUMNS = [
+    ("ads", "media_ref", "VARCHAR(200)"),
+    ("platform_connections", "config", "JSON"),
+]
+
+
+def _ensure_new_columns() -> None:
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        for table, column, ddl_type in _NEW_COLUMNS:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}"))
+                conn.commit()
+            except Exception:  # column already exists (or dialect quirk) — fine
+                conn.rollback()
 
 
 def _seed_dev_users() -> None:

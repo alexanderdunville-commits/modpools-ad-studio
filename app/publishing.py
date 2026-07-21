@@ -21,7 +21,12 @@ from typing import TYPE_CHECKING
 from .enums import ConnectionMode
 
 if TYPE_CHECKING:  # avoid import cycle (db_models imports nothing from here)
-    from .db_models import Ad
+    from .db_models import Ad, PlatformConnection
+
+
+class PublishError(RuntimeError):
+    """A live platform rejected or couldn't complete a publish/pause call.
+    The message is safe to show in the schedule note / notifications."""
 
 
 @dataclass
@@ -90,6 +95,9 @@ class GoogleAdsAdapter(_RealAdapterStub):
     docs_url = "https://developers.google.com/google-ads/api/docs"
 
 
+# TikTok has a real implementation — see app/tiktok_api.py (imported lazily in
+# get_adapter to avoid a circular import). This stub remains only as the
+# fallback when no credentials are configured.
 class TikTokAdapter(_RealAdapterStub):
     api_name = "the TikTok Marketing API"
     docs_url = "https://business-api.tiktok.com/portal/docs"
@@ -117,10 +125,30 @@ _REAL_ADAPTERS: dict[str, type[PublishingAdapter]] = {
 }
 
 
-def get_adapter(platform: str, mode: str = ConnectionMode.sandbox.value) -> PublishingAdapter:
-    """Return the adapter for a platform. Sandbox mode always uses the mock."""
+def get_adapter(
+    platform: str,
+    mode: str = ConnectionMode.sandbox.value,
+    connection: "PlatformConnection | None" = None,
+) -> PublishingAdapter:
+    """Return the adapter for a platform. Sandbox mode always uses the mock.
+
+    In live mode, platforms with a real implementation are constructed from the
+    stored connection (decrypted token + account id + config). Platforms without
+    one fall back to their stub, which fails with a clear "not implemented" note.
+    """
     if mode != ConnectionMode.live.value:
         return MockAdapter()
+
+    if platform == "tiktok" and connection is not None and connection.access_token_enc:
+        from .security import decrypt  # local import: security has no deps on us
+        from .tiktok_api import TikTokLiveAdapter  # lazy: avoids circular import
+
+        return TikTokLiveAdapter(
+            access_token=decrypt(connection.access_token_enc),
+            advertiser_id=connection.external_account_id or "",
+            config=connection.config or {},
+        )
+
     adapter_cls = _REAL_ADAPTERS.get(platform)
     if adapter_cls is None:
         raise ValueError(f"No live adapter registered for platform '{platform}'.")
