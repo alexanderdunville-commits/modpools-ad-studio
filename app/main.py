@@ -82,8 +82,14 @@ async def password_gate(request: Request, call_next):
 def health(db: Session = Depends(get_db)) -> dict:
     settings = get_settings()
     providers = available_providers(db)
+    # Report the storage backend so persistence can be confirmed at a glance:
+    # "postgresql" = permanent (survives redeploys); "sqlite" = temporary.
+    scheme = settings.database_url.split(":", 1)[0].split("+", 1)[0]
     return {
         "status": "ok",
+        "version": app.version,
+        "database": "postgresql" if scheme.startswith("postgres") else scheme,
+        "persistent_storage": scheme.startswith("postgres"),
         "model": settings.model,
         "effort": settings.effort,
         # True if any provider (Claude or OpenAI, via env or the dashboard) is set.
