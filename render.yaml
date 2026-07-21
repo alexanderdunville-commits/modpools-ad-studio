@@ -1,7 +1,18 @@
 # Render.com deploy blueprint for Modpools Ad Manager.
 # In Render: New → Blueprint → connect this repo. Render reads this file and
-# creates the web service. You'll be asked to fill in APP_PASSWORD and
-# (optionally) ANTHROPIC_API_KEY. See docs/DEPLOY.md for step-by-step help.
+# creates the web service AND a persistent Postgres database. You'll be asked to
+# fill in APP_PASSWORD and (optionally) ANTHROPIC_API_KEY. See docs/DEPLOY.md.
+
+# Persistent database — everything the app saves (campaigns, ads, generated
+# photos/videos, connections, settings) lives here, so it survives restarts and
+# redeploys. NOTE: Render's free database plan is deleted after ~30 days; move
+# it to a paid plan (a few dollars/month) to keep your data permanently.
+databases:
+  - name: modpools-db
+    databaseName: modpools
+    user: modpools
+    plan: free
+
 services:
   - type: web
     name: modpools-ad-manager
@@ -14,6 +25,12 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.4
+      # Persistent storage — points the app at the Postgres database above so
+      # nothing is lost on restart/redeploy.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: modpools-db
+          property: connectionString
       # Shared password to open the app (you choose it during setup).
       - key: APP_PASSWORD
         sync: false
@@ -21,5 +38,6 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
       # Auto-generated secret used to encrypt stored platform tokens.
+      # Keep this stable — regenerating it makes existing encrypted keys unreadable.
       - key: SECRET_ENCRYPTION_KEY
         generateValue: true

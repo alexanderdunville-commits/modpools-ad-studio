@@ -23,6 +23,21 @@ VALID_EFFORTS = ("low", "medium", "high")
 DEFAULT_DATABASE_URL = "sqlite:///./modpools.db"
 
 
+def _normalize_db_url(url: str) -> str:
+    """Make a hosted Postgres URL work with SQLAlchemy 2.0 + psycopg 3.
+
+    Render (and others) hand out ``postgres://…`` URLs. SQLAlchemy 2.0 dropped
+    the bare ``postgres://`` alias, and we ship the psycopg 3 driver, so point
+    the URL explicitly at ``postgresql+psycopg://``. SQLite/other URLs pass through.
+    """
+    url = url.strip()
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
 @dataclass(frozen=True)
 class Settings:
     anthropic_api_key: str | None
@@ -46,8 +61,9 @@ def get_settings() -> Settings:
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
         model=os.environ.get("NESTLY_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
         effort=effort,
-        database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL).strip()
-        or DEFAULT_DATABASE_URL,
+        database_url=_normalize_db_url(
+            os.environ.get("DATABASE_URL", "").strip() or DEFAULT_DATABASE_URL
+        ),
         # When set, the whole app is behind an HTTP Basic password (for hosting).
         app_password=os.environ.get("APP_PASSWORD") or None,
     )
