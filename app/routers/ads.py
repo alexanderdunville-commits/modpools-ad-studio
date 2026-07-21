@@ -4,6 +4,8 @@ approval, and delete.
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -16,7 +18,23 @@ from ..db_models import Ad, Campaign, Creative, User
 from ..enums import SUBMITTABLE, AdStatus, Role
 from ..image_gen import ImageError, build_image_prompt, generate_image, size_for
 from ..models import Platform
-from ..schemas import AdCreate, AdOut, AdUpdate, CreativeOut, GenerateImageRequest
+from ..schemas import (
+    AdCreate,
+    AdOut,
+    AdUpdate,
+    CreativeOut,
+    GenerateImageRequest,
+    GenerateVideoRequest,
+)
+from ..video_gen import (
+    VideoError,
+    build_video_prompt,
+    create_job,
+    download_data_uri,
+    job_status,
+)
+from ..video_gen import seconds_for as video_seconds
+from ..video_gen import size_for as video_size
 
 router = APIRouter(prefix="/api/ads", tags=["ads"])
 
@@ -152,6 +170,91 @@ def generate_ad_image(
     db.commit()
     db.refresh(creative)
     return creative
+
+
+@router.post("/{ad_id}/generate-video", response_model=CreativeOut, status_code=201)
+def generate_ad_video(
+    ad_id: int,
+    body: GenerateVideoRequest | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*_EDITORS)),
+) -> Creative:
+    """Start an AI video render for this ad. Video renders take minutes, so this
+    returns immediately with a 'processing' creative; poll the status endpoint
+    until the clip is ready. Video generation is OpenAI (Sora) only."""
+    ad = _get_ad(db, ad_id)
+    key = openai_key(db)
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="Video generation needs an OpenAI key. Add one in Settings.",
+        )
+    campaign = db.get(Campaign, ad.campaign_id)
+    brand = get_brand(campaign.brand if campaign else "modpools") or get_brand("modpools")
+    prompt = build_video_prompt(
+        brand, visual_concept=ad.visual_concept, headline=ad.headline,
+        offer=(campaign.offer if campaign else None),
+    )
+    size = video_size(ad.platform, (body.size if body else None))
+    seconds = video_seconds(body.seconds if body else None)
+    try:
+        job = create_job(key, prompt=prompt, size=size, seconds=seconds)
+    except VideoError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    creative = Creative(
+        type="video", name=f"AI video · {ad.headline[:56]}", url=None,
+        body=json.dumps({"video_job": job["id"], "status": job["status"]}),
+        tags=["ai-generated", ad.platform, f"ad-{ad.id}"],
+        aspect_ratio=size, created_by=user.email,
+    )
+    db.add(creative)
+    db.flush()
+    log_action(db, user=user, action="ad.generate_video", entity_type="ad",
+               entity_id=ad.id, detail={"creative_id": creative.id, "job": job["id"]})
+    db.commit()
+    db.refresh(creative)
+    return creative
+
+
+@router.get("/video/{creative_id}/status")
+def video_status(
+    creative_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*_EDITORS)),
+) -> dict:
+    """Poll an in-progress AI video. When the render completes, the MP4 is saved
+    onto the creative and returned as a data URI."""
+    creative = db.get(Creative, creative_id)
+    if creative is None or creative.type != "video":
+        raise HTTPException(status_code=404, detail="Video creative not found.")
+    if creative.url:  # already downloaded
+        return {"status": "completed", "progress": 100, "url": creative.url}
+
+    try:
+        meta = json.loads(creative.body or "{}")
+    except (json.JSONDecodeError, TypeError):
+        meta = {}
+    job_id = meta.get("video_job")
+    if not job_id:
+        raise HTTPException(status_code=400, detail="No render job on this creative.")
+
+    key = openai_key(db)
+    if not key:
+        raise HTTPException(status_code=503, detail="OpenAI key missing.")
+    try:
+        st = job_status(key, job_id)
+        if st["status"] == "completed":
+            creative.url = download_data_uri(key, job_id)
+            creative.body = None
+            db.commit()
+            return {"status": "completed", "progress": 100, "url": creative.url}
+        if st["status"] == "failed":
+            return {"status": "failed", "progress": st.get("progress", 0),
+                    "error": st.get("error") or "The render failed."}
+        return {"status": st["status"], "progress": st.get("progress", 0)}
+    except VideoError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/{ad_id}/submit", response_model=AdOut)

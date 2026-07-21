@@ -100,6 +100,14 @@ class GenerateImageRequest(BaseModel):
     size: str | None = None   # 1024x1024 | 1024x1536 | 1536x1024
 
 
+class GenerateVideoRequest(BaseModel):
+    """Optional overrides for AI video generation. Size defaults to the ad's
+    platform aspect; seconds defaults to a short (cheap) clip."""
+
+    size: str | None = None      # 720x1280 | 1280x720 | 1024x1808 | 1808x1024
+    seconds: str | None = None   # 4 | 8 | 12
+
+
 class AdOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
