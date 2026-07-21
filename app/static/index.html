@@ -343,23 +343,30 @@
     $("campDetail").innerHTML = `<div class="card"><h3 style="margin-top:0">Ads in this campaign (${ads.length})</h3>`+
       (ads.length?`<table><thead><tr><th>Headline</th><th>Platform</th><th>Status</th><th></th></tr></thead><tbody>`+
       ads.map(a=>{ const editable=["draft","changes_requested"].includes(a.status);
-        const isMeta=(a.platform==="facebook"||a.platform==="instagram");
+        const needsVideo=["tiktok","youtube"].includes(a.platform);
+        const optImage=["facebook","instagram"].includes(a.platform);
+        const needsImage=(a.platform==="google_display");
         let media="";
-        if(a.platform==="tiktok") media = a.media_ref?` <span class="pill" title="TikTok video attached">🎬 video</span>`:` <span class="pill" style="opacity:.6" title="TikTok ads need a video before live posting">no video</span>`;
-        else if(isMeta&&a.media_ref) media = ` <span class="pill" title="Meta image attached">🖼 image</span>`;
-        const attachBtn = (a.platform==="tiktok"&&editable) ? `<button class="btn ghost sm" data-media="${a.id}" data-cur="${esc(a.media_ref||"")}" data-kind="tiktok">🎬 ${a.media_ref?"Change":"Attach"} video</button> `
-          : (isMeta&&editable) ? `<button class="btn ghost sm" data-media="${a.id}" data-cur="${esc(a.media_ref||"")}" data-kind="meta">🖼 ${a.media_ref?"Change":"Attach"} image</button> ` : "";
+        if(needsVideo) media = a.media_ref?` <span class="pill" title="Video attached">🎬 video</span>`:` <span class="pill" style="opacity:.6" title="Video ads need a video before live posting">no video</span>`;
+        else if(needsImage) media = a.media_ref?` <span class="pill" title="Image asset attached">🖼 image</span>`:` <span class="pill" style="opacity:.6" title="Display ads need an image before live posting">no image</span>`;
+        else if(optImage&&a.media_ref) media = ` <span class="pill" title="Meta image attached">🖼 image</span>`;
+        let attachBtn="";
+        if(editable&&needsVideo) attachBtn=`<button class="btn ghost sm" data-media="${a.id}" data-cur="${esc(a.media_ref||"")}" data-plat="${a.platform}" data-kind="video">🎬 ${a.media_ref?"Change":"Attach"} video</button> `;
+        else if(editable&&(needsImage||optImage)) attachBtn=`<button class="btn ghost sm" data-media="${a.id}" data-cur="${esc(a.media_ref||"")}" data-plat="${a.platform}" data-kind="image">🖼 ${a.media_ref?"Change":"Attach"} image</button> `;
         return `<tr><td>${esc(a.headline)}</td><td>${esc(platLabel(a.platform))}${media}</td><td>${pill(a.status)}</td>
         <td style="text-align:right">${attachBtn}${["draft","changes_requested","rejected"].includes(a.status)?`<button class="btn ghost sm" data-submit="${a.id}">Submit for approval</button>`:""}</td></tr>`; }).join("")+`</tbody></table>`
       :`<div class="empty">No ads yet. Generate some in <b>Create Ads</b> and save them here.</div>`)+`</div>`;
-    document.querySelectorAll("[data-media]").forEach(b=>{ const meta=b.dataset.kind==="meta";
-      b.onclick=()=>modal(meta?"Attach Meta image":"Attach TikTok video",
-      meta?`<p class="sub" style="margin-top:0">Optional: upload an image to your <b>Meta ad account image library</b> and paste its <b>image hash</b> here. Without one, Meta pulls a preview image from your landing page.</p>
-       <label>Meta image hash</label><input name="media_ref" value="${esc(b.dataset.cur||"")}" placeholder="e.g. 9a8b7c6d..."/>`
-      :`<p class="sub" style="margin-top:0">TikTok in-feed ads must have a video. Upload the finished video in <b>TikTok Ads Manager → Assets → Videos</b>, then paste its <b>video ID</b> here. It travels with the ad through approval and is used when the ad posts live.</p>
-       <label>TikTok video ID</label><input name="media_ref" value="${esc(b.dataset.cur||"")}" placeholder="v10033g50000..."/>`,
+    const MEDIA_HELP={ tiktok:["Attach TikTok video","TikTok in-feed ads must have a video. Upload it in <b>TikTok Ads Manager → Assets → Videos</b> and paste its <b>video ID</b>.","TikTok video ID","v10033g50000..."],
+      youtube:["Attach YouTube video","YouTube ads need a video. Upload it to YouTube and paste its <b>video ID / asset</b> here.","YouTube video ID","dQw4w9WgXcQ"],
+      facebook:["Attach Meta image","Optional: upload an image to your <b>Meta ad account image library</b> and paste its <b>image hash</b>. Without one, Meta pulls a preview from your landing page.","Meta image hash","9a8b7c6d..."],
+      instagram:["Attach Meta image","Optional: upload an image to your <b>Meta ad account image library</b> and paste its <b>image hash</b>. Without one, Meta pulls a preview from your landing page.","Meta image hash","9a8b7c6d..."],
+      google_display:["Attach Google image asset","Google Display ads need an image. Upload an image asset in Google Ads and paste its <b>asset resource name</b> here.","Image asset resource name","customers/123/assets/456"] };
+    document.querySelectorAll("[data-media]").forEach(b=>{ const h=MEDIA_HELP[b.dataset.plat]||MEDIA_HELP.tiktok;
+      b.onclick=()=>modal(h[0],
+      `<p class="sub" style="margin-top:0">${h[1]} It travels with the ad through approval and is used when the ad posts live.</p>
+       <label>${h[2]}</label><input name="media_ref" value="${esc(b.dataset.cur||"")}" placeholder="${esc(h[3])}"/>`,
       async(bg,close)=>{ await api(`/api/ads/${b.dataset.media}`,{method:"PATCH",body:{media_ref:val(bg,"media_ref")||null}});
-        toast(meta?"Image attached.":"Video attached.","ok"); close(); openCampaign(id); }); });
+        toast("Media attached.","ok"); close(); openCampaign(id); }); });
     document.querySelectorAll("[data-submit]").forEach(b=>b.onclick=async()=>{ try{ await api(`/api/ads/${b.dataset.submit}/submit`,{method:"POST"}); toast("Sent to approval queue.","ok"); openCampaign(id); refreshChrome(); }catch(e){toast(e.message,"err");} });
   }
 
@@ -481,7 +488,7 @@
     const admin = state.user.startsWith("admin@")||state.user.startsWith("manager@");
     const byPlat = Object.fromEntries(conns.map(c=>[c.platform,c]));
     $("view").innerHTML = `<p class="sub">Connect ad accounts. In <b>sandbox</b> mode posting is simulated (no real spend); switch to <b>live</b> once a real adapter + credentials are in place. YouTube runs through the Google connection.</p>
-      <div class="cardgrid">`+PLATFORMS.map(([pv,pl])=>{ const c=byPlat[pv]; const cfg=c?.config||{}; const liveReady=(pv==="tiktok"||pv==="facebook"||pv==="instagram");
+      <div class="cardgrid">`+PLATFORMS.map(([pv,pl])=>{ const c=byPlat[pv]; const cfg=c?.config||{}; const liveReady=["tiktok","facebook","instagram","google_search","google_display","youtube","linkedin"].includes(pv);
         return `<div class="vcard"><h4>${esc(pl)}${liveReady?` <span class="pill" title="Real posting implemented">live-ready</span>`:""}</h4>
           ${c?`<div class="field"><div class="fk">Account</div><div class="fv">${esc(c.account_name||"—")}</div></div>
              <div class="field"><div class="fk">Token</div><div class="fv">${esc(c.token_preview||"—")}</div></div>
@@ -490,7 +497,7 @@
              <div class="row" style="gap:8px;margin:6px 0">${pill(c.mode)} ${pill(c.status)}</div>`
             :`<div class="muted" style="margin:8px 0">Not connected.</div>`}
           ${admin?`<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-conn="${pv}">${c?"Update":"Connect"}</button>${c&&liveReady&&c.token_preview?`<button class="btn sm" data-test="${pv}">Test connection</button>`:""}${c?`<button class="btn ghost sm" data-disc="${pv}">Disconnect</button>`:""}</div>`:""}</div>`; }).join("")+`</div>`;
-    document.querySelectorAll("[data-conn]").forEach(b=>b.onclick=()=>{ const pv=b.dataset.conn; const c=byPlat[pv]; const cfg=c?.config||{}; const isMeta=(pv==="facebook"||pv==="instagram");
+    document.querySelectorAll("[data-conn]").forEach(b=>b.onclick=()=>{ const pv=b.dataset.conn; const c=byPlat[pv]; const cfg=c?.config||{}; const isMeta=(pv==="facebook"||pv==="instagram"); const isGoogle=["google_search","google_display","youtube"].includes(pv); const isLinkedIn=(pv==="linkedin");
       const tiktokFields = pv!=="tiktok" ? "" :
         `<div class="grid2"><div><label>Ad group ID</label><input name="cfg_adgroup_id" value="${esc(cfg.adgroup_id||"")}" placeholder="from TikTok Ads Manager"/></div>
          <div><label>Identity ID</label><input name="cfg_identity_id" value="${esc(cfg.identity_id||"")}" placeholder="Assets → Identity"/></div></div>
@@ -503,15 +510,41 @@
          <div class="grid2"><div><label>Landing page URL</label><input name="cfg_landing" value="${esc(cfg.landing_page_url||"https://modpools.com")}"/></div>
          <div><label>Instagram actor ID ${pv==="instagram"?"(required)":"(optional)"}</label><input name="cfg_ig" value="${esc(cfg.instagram_actor_id||"")}"/></div></div>
          <div class="muted" style="font-size:12px;margin-top:4px">Facebook & Instagram share one Meta ad account. Ads post into this ad set. Optionally attach a Meta image hash per ad (campaign screen → 🖼).</div>`;
+      const googleFields = !isGoogle ? "" :
+        `<div class="grid2"><div><label>Customer ID (digits)</label><input name="cfg_customer_id" value="${esc(cfg.customer_id||"")}" placeholder="1234567890"/></div>
+         <div><label>Login/MCC ID (optional)</label><input name="cfg_login_cid" value="${esc(cfg.login_customer_id||"")}"/></div></div>
+         <div class="grid2"><div><label>Ad group ID</label><input name="cfg_ad_group_id" value="${esc(cfg.ad_group_id||"")}" placeholder="from Google Ads"/></div>
+         <div><label>Landing page URL</label><input name="cfg_landing" value="${esc(cfg.landing_page_url||"https://modpools.com")}"/></div></div>
+         <div style="margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px">
+           <div class="muted" style="font-size:12px;margin-bottom:6px">Google credentials ${c?"(leave all blank to keep)":""} — from your Google Cloud OAuth app + approved developer token:</div>
+           <div class="grid2"><div><label>Refresh token</label><input name="g_refresh" placeholder="stored encrypted"/></div>
+           <div><label>Developer token</label><input name="g_dev" placeholder="stored encrypted"/></div></div>
+           <div class="grid2"><div><label>OAuth client ID</label><input name="g_cid" placeholder="stored encrypted"/></div>
+           <div><label>OAuth client secret</label><input name="g_secret" placeholder="stored encrypted"/></div></div>
+         </div>
+         <div class="muted" style="font-size:12px;margin-top:4px">${pv==="youtube"?"YouTube ads need a video ID attached per ad (campaign screen → 🎬).":pv==="google_display"?"Display ads need an image asset resource name attached per ad (campaign screen → 🖼).":"Search ads are text-only — no media needed."}</div>`;
+      const linkedinFields = !isLinkedIn ? "" :
+        `<div class="grid2"><div><label>Organization (Page) ID</label><input name="cfg_org_id" value="${esc(cfg.organization_id||"")}" placeholder="digits"/></div>
+         <div><label>Campaign ID</label><input name="cfg_campaign_id" value="${esc(cfg.campaign_id||"")}" placeholder="from Campaign Manager"/></div></div>
+         <div><label>Landing page URL</label><input name="cfg_landing" value="${esc(cfg.landing_page_url||"https://modpools.com")}"/></div>
+         <div class="muted" style="font-size:12px;margin-top:4px">The ad is posted by your LinkedIn Page and run under this campaign.</div>`;
+      const acctLabel = pv==="tiktok"?"Advertiser ID (numeric)":isMeta?"Ad account ID (act_… or number)":isGoogle?"(not used — set Customer ID below)":isLinkedIn?"Sponsored ad account ID (digits)":"Ad account id";
       modal(`Connect ${platLabel(pv)}`,
         `<label>Account name</label><input name="account_name" value="${esc(c?.account_name||"")}"/>
-         <label>${pv==="tiktok"?"Advertiser ID (numeric)":isMeta?"Ad account ID (act_… or number)":"Ad account id"}</label><input name="external_account_id" value="${esc(c?.external_account_id||"")}"/>
-         <label>Access token ${c?"(leave blank to keep)":""}</label><input name="access_token" placeholder="stored encrypted, shown masked"/>
-         ${tiktokFields}${metaFields}
+         ${isGoogle?"":`<label>${acctLabel}</label><input name="external_account_id" value="${esc(c?.external_account_id||"")}"/>`}
+         ${(isGoogle||isLinkedIn)?"":`<label>Access token ${c?"(leave blank to keep)":""}</label><input name="access_token" placeholder="stored encrypted, shown masked"/>`}
+         ${isLinkedIn?`<label>Access token ${c?"(leave blank to keep)":""}</label><input name="access_token" placeholder="stored encrypted, shown masked"/>`:""}
+         ${tiktokFields}${metaFields}${googleFields}${linkedinFields}
          <label>Mode</label><select name="mode"><option value="sandbox"${c?.mode!=="live"?" selected":""}>Sandbox (simulated)</option><option value="live"${c?.mode==="live"?" selected":""}>Live (real posting)</option></select>`,
-        async(bg,close)=>{ const body={platform:pv,account_name:val(bg,"account_name")||null,external_account_id:val(bg,"external_account_id")||null,mode:val(bg,"mode")}; const tok=val(bg,"access_token"); if(tok) body.access_token=tok;
+        async(bg,close)=>{ const body={platform:pv,account_name:val(bg,"account_name")||null,mode:val(bg,"mode")};
+          if(!isGoogle) body.external_account_id=val(bg,"external_account_id")||null;
+          if(!isGoogle){ const tok=val(bg,"access_token"); if(tok) body.access_token=tok; }
           if(pv==="tiktok") body.config={adgroup_id:val(bg,"cfg_adgroup_id")||null,identity_id:val(bg,"cfg_identity_id")||null,identity_type:"CUSTOMIZED_USER",landing_page_url:val(bg,"cfg_landing")||null,display_name:val(bg,"cfg_display")||null};
           if(isMeta) body.config={page_id:val(bg,"cfg_page_id")||null,adset_id:val(bg,"cfg_adset_id")||null,landing_page_url:val(bg,"cfg_landing")||null,instagram_actor_id:val(bg,"cfg_ig")||null};
+          if(isGoogle){ body.config={customer_id:val(bg,"cfg_customer_id")||null,login_customer_id:val(bg,"cfg_login_cid")||null,ad_group_id:val(bg,"cfg_ad_group_id")||null,landing_page_url:val(bg,"cfg_landing")||null};
+            const r=val(bg,"g_refresh"),d=val(bg,"g_dev"),ci=val(bg,"g_cid"),se=val(bg,"g_secret");
+            if(r||d||ci||se){ if(!(r&&d&&ci&&se)) throw new Error("Fill all four Google credential fields together (refresh token, developer token, client ID, client secret)."); body.access_token=JSON.stringify({refresh_token:r,developer_token:d,client_id:ci,client_secret:se}); } }
+          if(isLinkedIn) body.config={organization_id:val(bg,"cfg_org_id")||null,campaign_id:val(bg,"cfg_campaign_id")||null,landing_page_url:val(bg,"cfg_landing")||null};
           await api("/api/connections",{method:"PUT",body}); toast("Connection saved.","ok"); close(); render(); }); });
     document.querySelectorAll("[data-test]").forEach(b=>b.onclick=async()=>{ b.disabled=true; b.textContent="Testing…";
       try{ const r=await api(`/api/connections/${b.dataset.test}/test`,{method:"POST"});

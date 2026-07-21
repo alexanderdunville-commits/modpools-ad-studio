@@ -158,6 +158,22 @@ def get_adapter(
                 ad_account_id=connection.external_account_id or "",
                 config=connection.config or {},
             )
+        if platform in ("google_search", "google_display", "youtube"):
+            from .google_ads_api import GoogleAdsLiveAdapter  # lazy import
+
+            return GoogleAdsLiveAdapter(
+                credentials_json=decrypt(connection.access_token_enc),
+                platform=platform,
+                config=connection.config or {},
+            )
+        if platform == "linkedin":
+            from .linkedin_api import LinkedInLiveAdapter  # lazy import
+
+            return LinkedInLiveAdapter(
+                access_token=decrypt(connection.access_token_enc),
+                ad_account_id=connection.external_account_id or "",
+                config=connection.config or {},
+            )
 
     adapter_cls = _REAL_ADAPTERS.get(platform)
     if adapter_cls is None:

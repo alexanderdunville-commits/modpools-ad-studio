@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Modpools Ad Manager", version="1.3.0", lifespan=lifespan)
+app = FastAPI(title="Modpools Ad Manager", version="1.4.0", lifespan=lifespan)
 
 
 @app.middleware("http")

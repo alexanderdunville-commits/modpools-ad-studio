@@ -90,14 +90,15 @@ def test_connection(
     ).first()
     if conn is None:
         raise HTTPException(status_code=404, detail="Connection not found.")
-    if platform not in ("tiktok", "facebook", "instagram"):
+    _TESTABLE = ("tiktok", "facebook", "instagram", "google_search",
+                 "google_display", "youtube", "linkedin")
+    if platform not in _TESTABLE:
         raise HTTPException(
             status_code=400,
-            detail="Connection testing is available for TikTok and Meta "
-                   "(Facebook/Instagram) so far.",
+            detail="Connection testing isn't available for this platform yet.",
         )
     if not conn.access_token_enc:
-        raise HTTPException(status_code=400, detail="No access token saved yet.")
+        raise HTTPException(status_code=400, detail="No credentials saved yet.")
 
     try:
         if platform == "tiktok":
@@ -108,10 +109,26 @@ def test_connection(
                 advertiser_id=conn.external_account_id or "",
                 config=conn.config or {},
             )
-        else:
+        elif platform in ("facebook", "instagram"):
             from ..meta_api import MetaLiveAdapter
 
             adapter = MetaLiveAdapter(
+                access_token=decrypt(conn.access_token_enc),
+                ad_account_id=conn.external_account_id or "",
+                config=conn.config or {},
+            )
+        elif platform in ("google_search", "google_display", "youtube"):
+            from ..google_ads_api import GoogleAdsLiveAdapter
+
+            adapter = GoogleAdsLiveAdapter(
+                credentials_json=decrypt(conn.access_token_enc),
+                platform=platform,
+                config=conn.config or {},
+            )
+        else:  # linkedin
+            from ..linkedin_api import LinkedInLiveAdapter
+
+            adapter = LinkedInLiveAdapter(
                 access_token=decrypt(conn.access_token_enc),
                 ad_account_id=conn.external_account_id or "",
                 config=conn.config or {},
