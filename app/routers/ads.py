@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..ai_providers import openai_key
 from ..audit import log_action
 from ..auth import get_current_user, require_roles
+from ..brand_assets import download_reference
 from ..brands import get_brand
 from ..db import get_db
 from ..db_models import Ad, Campaign, Creative, User
@@ -148,13 +149,17 @@ def generate_ad_image(
         )
     campaign = db.get(Campaign, ad.campaign_id)
     brand = get_brand(campaign.brand if campaign else "modpools") or get_brand("modpools")
+    # Pull a real product photo from the brand's site to ground the image in the
+    # actual product (best-effort — falls back to text-to-image if unavailable).
+    reference = download_reference(brand)
     prompt = build_image_prompt(
         brand, visual_concept=ad.visual_concept, headline=ad.headline,
         offer=(campaign.offer if campaign else None),
+        has_reference=reference is not None,
     )
     size = size_for(ad.platform, (body.size if body else None))
     try:
-        data_uri = generate_image(key, prompt=prompt, size=size)
+        data_uri = generate_image(key, prompt=prompt, size=size, reference=reference)
     except ImageError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

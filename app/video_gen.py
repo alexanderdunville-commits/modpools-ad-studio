@@ -22,7 +22,10 @@ import httpx
 from .brands import BrandProfile
 
 _BASE = "https://api.openai.com/v1"
-_MODEL = "sora-2"
+# sora-2-pro is the higher-quality (more expensive) tier — the user asked for
+# top-tier video. Falls back to sora-2 automatically if pro isn't available.
+_MODEL = "sora-2-pro"
+_FALLBACK_MODEL = "sora-2"
 _TIMEOUT = 60.0
 
 # Platform → Sora frame size. Vertical for TikTok/Shorts/Reels, wide for YouTube.
@@ -88,21 +91,38 @@ def _error_message(resp: httpx.Response) -> str:
     return f"HTTP {resp.status_code}"
 
 
+def _create_with_model(client: httpx.Client, openai_key: str, *, model: str,
+                       prompt: str, size: str, seconds: str) -> httpx.Response:
+    return client.post(f"{_BASE}/videos", headers=_headers(openai_key),
+                       json={"model": model, "prompt": prompt,
+                             "size": size, "seconds": seconds})
+
+
 def create_job(
     openai_key: str, *, prompt: str, size: str = "720x1280", seconds: str = "4"
 ) -> dict:
-    """Start a Sora render. Returns {'id', 'status'}."""
+    """Start a Sora render at top quality (sora-2-pro), falling back to sora-2
+    if the pro model isn't enabled for the account. Returns {'id', 'status'}."""
     try:
         with httpx.Client(timeout=_TIMEOUT) as client:
-            resp = client.post(f"{_BASE}/videos", headers=_headers(openai_key),
-                               json={"model": _MODEL, "prompt": prompt,
-                                     "size": size, "seconds": seconds})
+            resp = _create_with_model(client, openai_key, model=_MODEL,
+                                      prompt=prompt, size=size, seconds=seconds)
+            # If pro isn't available to this account, retry once with sora-2.
+            if resp.status_code >= 400 and _model_unavailable(resp):
+                resp = _create_with_model(client, openai_key, model=_FALLBACK_MODEL,
+                                          prompt=prompt, size=size, seconds=seconds)
     except httpx.HTTPError as exc:
         raise VideoError(f"Could not reach the OpenAI video API: {exc}") from exc
     if resp.status_code >= 400:
         raise VideoError(f"OpenAI video error: {_error_message(resp)}")
     data = resp.json()
     return {"id": data.get("id"), "status": data.get("status", "queued")}
+
+
+def _model_unavailable(resp: httpx.Response) -> bool:
+    msg = _error_message(resp).lower()
+    return any(w in msg for w in ("model", "not found", "does not have access",
+                                  "unsupported", "not available"))
 
 
 def job_status(openai_key: str, job_id: str) -> dict:

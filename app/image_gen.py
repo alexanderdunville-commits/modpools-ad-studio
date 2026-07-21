@@ -37,25 +37,35 @@ def size_for(platform: str, override: str | None = None) -> str:
 
 
 def build_image_prompt(
-    brand: BrandProfile, *, visual_concept: str, headline: str, offer: str | None
+    brand: BrandProfile, *, visual_concept: str, headline: str, offer: str | None,
+    has_reference: bool = False,
 ) -> str:
     """A photographic prompt for a scroll-stopping ad image.
 
     Image models render text poorly, so we explicitly ask for a clean photo with
     no words/logos baked in — the copy is added separately by the ad platform.
+    When a real product photo is supplied as a reference, we tell the model to
+    keep the actual product accurate rather than invent one.
     """
-    parts = [
-        f"A high-quality, photorealistic advertising photograph for {brand.name}.",
-        f"Product context: {brand.description}",
-    ]
+    parts = [f"A premium, photorealistic advertising photograph for {brand.name}."]
+    if has_reference:
+        parts.append(
+            "IMPORTANT: the attached image is a real photo of the actual product. "
+            "Keep the product's real look, shape, materials, and proportions "
+            "faithful to it — do not invent a different-looking product. Restage "
+            "it into a polished, aspirational advertising scene."
+        )
+    parts.append(f"Product context: {brand.description}")
     if offer:
         parts.append(f"This ad is about: {offer.strip()}")
     parts.append(f"Creative direction: {visual_concept.strip()}")
     parts.append(f"The mood should match the headline '{headline.strip()}'.")
     parts.append(
-        "Bright, aspirational, editorial lifestyle photography. Natural light, "
-        "realistic backyard/residential setting, crisp focus, appealing "
-        "composition suitable for a paid social ad."
+        "Ultra-realistic, high-end editorial lifestyle photography. Natural light, "
+        "realistic residential/backyard setting, sharp focus, professional color "
+        "grading, magazine-quality composition suitable for a paid social ad. "
+        "Photorealism is essential — it must look like a real photograph, not a "
+        "render or illustration."
     )
     parts.append(
         "Do NOT render any text, words, captions, watermarks, or logos in the "
@@ -65,15 +75,35 @@ def build_image_prompt(
 
 
 def generate_image(
-    openai_key: str, *, prompt: str, size: str = "1024x1024", quality: str = "medium"
+    openai_key: str, *, prompt: str, size: str = "1024x1024", quality: str = "high",
+    reference: tuple[bytes, str] | None = None,
 ) -> str:
-    """Generate one image and return a ``data:image/png;base64,...`` URI."""
+    """Generate one image and return a ``data:image/png;base64,...`` URI.
+
+    If ``reference`` (image bytes + mime) is given, the real product photo guides
+    the result via the image-edit endpoint; on any failure we fall back to plain
+    text-to-image so generation never hard-fails on the reference step.
+    """
     try:
         from openai import OpenAI
     except ImportError as exc:  # pragma: no cover
         raise ImageError("The 'openai' package isn't installed.") from exc
 
     client = OpenAI(api_key=openai_key)
+
+    if reference is not None:
+        ref_bytes, ref_mime = reference
+        ext = "png" if "png" in ref_mime else ("webp" if "webp" in ref_mime else "jpg")
+        try:
+            result = client.images.edit(
+                model=_IMAGE_MODEL, image=(f"reference.{ext}", ref_bytes, ref_mime),
+                prompt=prompt, size=size, quality=quality, n=1,
+            )
+            if result.data and getattr(result.data[0], "b64_json", None):
+                return f"data:image/png;base64,{result.data[0].b64_json}"
+        except Exception:
+            pass  # fall back to text-to-image below
+
     try:
         result = client.images.generate(
             model=_IMAGE_MODEL, prompt=prompt, size=size, quality=quality, n=1
