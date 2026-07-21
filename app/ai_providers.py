@@ -79,21 +79,40 @@ def _resolve_key(provider: str, db_keys: dict[str, str]) -> str | None:
     return os.environ.get(env_var) or None
 
 
-def resolve_choice(db: "Session | None" = None) -> ProviderChoice | None:
-    """Pick a provider. Honours an explicit AI_PROVIDER env override, otherwise
-    takes the first provider (Claude, then OpenAI) that has a key."""
+def resolve_choices(db: "Session | None" = None) -> list[ProviderChoice]:
+    """All usable providers, best first, to try in order.
+
+    A key set in the dashboard (database) ranks **above** an environment key —
+    if you paste an OpenAI key into Settings, it's used even when an old Claude
+    key still lingers in the server environment. Within each tier the order is
+    Claude then OpenAI, unless AI_PROVIDER forces one.
+    """
     db_keys = _db_keys(db)
 
     forced = (os.environ.get("AI_PROVIDER") or "").strip().lower()
     order = (forced,) if forced in _KEY_NAMES else _PROVIDER_ORDER
 
+    dashboard_tier: list[ProviderChoice] = []
+    env_tier: list[ProviderChoice] = []
     for provider in order:
-        key = _resolve_key(provider, db_keys)
-        if key:
-            return ProviderChoice(
-                provider=provider, api_key=key, model=_DEFAULT_MODELS[provider]
-            )
-    return None
+        if db_keys.get(provider):
+            dashboard_tier.append(ProviderChoice(
+                provider=provider, api_key=db_keys[provider],
+                model=_DEFAULT_MODELS[provider]))
+        else:
+            _db_name, env_var = _KEY_NAMES[provider]
+            env_key = os.environ.get(env_var)
+            if env_key:
+                env_tier.append(ProviderChoice(
+                    provider=provider, api_key=env_key,
+                    model=_DEFAULT_MODELS[provider]))
+    return dashboard_tier + env_tier
+
+
+def resolve_choice(db: "Session | None" = None) -> ProviderChoice | None:
+    """The single best provider (see resolve_choices for ordering)."""
+    choices = resolve_choices(db)
+    return choices[0] if choices else None
 
 
 def available_providers(db: "Session | None" = None) -> list[str]:

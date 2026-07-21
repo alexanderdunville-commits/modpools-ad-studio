@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
-from .ai_providers import available_providers, resolve_choice
+from .ai_providers import available_providers, resolve_choice, resolve_choices
 from .brands import list_brands
 from .config import get_settings
 from .db import get_db, init_db
@@ -115,26 +115,35 @@ _NO_PROVIDER = (
 
 @app.post("/api/generate", response_model=GenerateResponse)
 def generate(req: GenerateRequest, db: Session = Depends(get_db)) -> GenerateResponse:
-    choice = resolve_choice(db)
-    if choice is None:
+    choices = resolve_choices(db)
+    if not choices:
         raise HTTPException(status_code=503, detail=_NO_PROVIDER)
-    try:
-        return generate_ads(req, choice)
-    except GeneratorError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    # Try each configured provider in order; if one errors (bad/unfunded key),
+    # fall through to the next instead of failing outright. Report the primary
+    # provider's error — that's the one the user configured and can act on.
+    first_exc: GeneratorError | None = None
+    for choice in choices:
+        try:
+            return generate_ads(req, choice)
+        except GeneratorError as exc:
+            first_exc = first_exc or exc
+    raise HTTPException(status_code=502, detail=str(first_exc))
 
 
 @app.post("/api/generate/bulk", response_model=BulkGenerateResponse)
 def generate_bulk_route(
     req: BulkGenerateRequest, db: Session = Depends(get_db)
 ) -> BulkGenerateResponse:
-    choice = resolve_choice(db)
-    if choice is None:
+    choices = resolve_choices(db)
+    if not choices:
         raise HTTPException(status_code=503, detail=_NO_PROVIDER)
-    try:
-        return generate_bulk(req, choice)
-    except GeneratorError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    first_exc: GeneratorError | None = None
+    for choice in choices:
+        try:
+            return generate_bulk(req, choice)
+        except GeneratorError as exc:
+            first_exc = first_exc or exc
+    raise HTTPException(status_code=502, detail=str(first_exc))
 
 
 # Ad Manager resources
