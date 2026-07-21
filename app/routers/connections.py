@@ -90,22 +90,32 @@ def test_connection(
     ).first()
     if conn is None:
         raise HTTPException(status_code=404, detail="Connection not found.")
-    if platform != "tiktok":
+    if platform not in ("tiktok", "facebook", "instagram"):
         raise HTTPException(
             status_code=400,
-            detail="Connection testing is only implemented for TikTok so far.",
+            detail="Connection testing is available for TikTok and Meta "
+                   "(Facebook/Instagram) so far.",
         )
     if not conn.access_token_enc:
         raise HTTPException(status_code=400, detail="No access token saved yet.")
 
-    from ..tiktok_api import TikTokLiveAdapter
-
     try:
-        adapter = TikTokLiveAdapter(
-            access_token=decrypt(conn.access_token_enc),
-            advertiser_id=conn.external_account_id or "",
-            config=conn.config or {},
-        )
+        if platform == "tiktok":
+            from ..tiktok_api import TikTokLiveAdapter
+
+            adapter = TikTokLiveAdapter(
+                access_token=decrypt(conn.access_token_enc),
+                advertiser_id=conn.external_account_id or "",
+                config=conn.config or {},
+            )
+        else:
+            from ..meta_api import MetaLiveAdapter
+
+            adapter = MetaLiveAdapter(
+                access_token=decrypt(conn.access_token_enc),
+                ad_account_id=conn.external_account_id or "",
+                config=conn.config or {},
+            )
         info = adapter.test()
     except PublishError as exc:
         conn.status = ConnectionStatus.error.value
@@ -117,7 +127,7 @@ def test_connection(
     log_action(db, user=user, action="connection.test", entity_type="connection",
                entity_id=conn.id, detail={"platform": platform, "ok": True})
     db.commit()
-    return {"ok": True, "advertiser": info}
+    return {"ok": True, "account": info}
 
 
 @router.delete("/{platform}", status_code=204)

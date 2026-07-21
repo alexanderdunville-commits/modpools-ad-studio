@@ -139,15 +139,25 @@ def get_adapter(
     if mode != ConnectionMode.live.value:
         return MockAdapter()
 
-    if platform == "tiktok" and connection is not None and connection.access_token_enc:
+    if connection is not None and connection.access_token_enc:
         from .security import decrypt  # local import: security has no deps on us
-        from .tiktok_api import TikTokLiveAdapter  # lazy: avoids circular import
 
-        return TikTokLiveAdapter(
-            access_token=decrypt(connection.access_token_enc),
-            advertiser_id=connection.external_account_id or "",
-            config=connection.config or {},
-        )
+        if platform == "tiktok":
+            from .tiktok_api import TikTokLiveAdapter  # lazy: avoid circular import
+
+            return TikTokLiveAdapter(
+                access_token=decrypt(connection.access_token_enc),
+                advertiser_id=connection.external_account_id or "",
+                config=connection.config or {},
+            )
+        if platform in ("facebook", "instagram"):
+            from .meta_api import MetaLiveAdapter  # lazy: avoid circular import
+
+            return MetaLiveAdapter(
+                access_token=decrypt(connection.access_token_enc),
+                ad_account_id=connection.external_account_id or "",
+                config=connection.config or {},
+            )
 
     adapter_cls = _REAL_ADAPTERS.get(platform)
     if adapter_cls is None:

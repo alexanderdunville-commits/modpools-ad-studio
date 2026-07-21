@@ -7,11 +7,9 @@ outputs so the response is guaranteed-parseable JSON, and returns typed
 
 from __future__ import annotations
 
-import json
 from concurrent.futures import ThreadPoolExecutor
 
-import anthropic
-
+from .ai_providers import ProviderChoice, ProviderError, generate_json, resolve_choice
 from .brands import BrandProfile, get_brand
 from .config import get_settings
 from .models import (
@@ -110,6 +108,11 @@ class GeneratorError(RuntimeError):
     """Raised when generation can't proceed or the model declines."""
 
 
+# GeneratorError wraps ProviderError so callers keep one exception type.
+def _as_generator_error(exc: ProviderError) -> GeneratorError:
+    return GeneratorError(str(exc))
+
+
 def _system_prompt(brand: BrandProfile) -> str:
     differentiators = "\n".join(f"- {d}" for d in brand.differentiators)
     must_avoid = "\n".join(f"- {m}" for m in brand.must_avoid)
@@ -146,54 +149,36 @@ def _user_prompt(req: GenerateRequest, brand: BrandProfile) -> str:
     )
 
 
-def _client() -> anthropic.Anthropic:
-    settings = get_settings()
-    if not settings.api_key_configured:
-        raise GeneratorError(
-            "ANTHROPIC_API_KEY is not configured. Add it to your .env file."
-        )
-    return anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
-
-def generate_ads(req: GenerateRequest) -> GenerateResponse:
+def generate_ads(
+    req: GenerateRequest, choice: ProviderChoice | None = None
+) -> GenerateResponse:
     brand = get_brand(req.brand)
     if brand is None:
         raise GeneratorError(f"Unknown brand '{req.brand}'.")
 
-    settings = get_settings()
-    client = _client()
-
-    try:
-        response = client.messages.create(
-            model=settings.model,
-            max_tokens=8000,
-            thinking={"type": "adaptive"},
-            output_config={
-                "effort": settings.effort,
-                "format": {"type": "json_schema", "schema": _AD_SCHEMA},
-            },
-            system=_system_prompt(brand),
-            messages=[{"role": "user", "content": _user_prompt(req, brand)}],
-        )
-    except anthropic.APIStatusError as exc:  # surface a clean message upstream
-        raise GeneratorError(f"Claude API error ({exc.status_code}): {exc.message}") from exc
-    except anthropic.APIConnectionError as exc:
-        raise GeneratorError("Could not reach the Claude API. Check your network.") from exc
-
-    if response.stop_reason == "refusal":
+    if choice is None:
+        choice = resolve_choice()
+    if choice is None:
         raise GeneratorError(
-            "The model declined to generate copy for this brief. Try rephrasing it."
+            "No AI provider is configured. Add an Anthropic (Claude) or OpenAI "
+            "API key on the Settings screen."
         )
 
-    text = next((b.text for b in response.content if b.type == "text"), None)
-    if not text:
-        raise GeneratorError("The model returned no copy. Try again.")
-
+    settings = get_settings()
     try:
-        data = json.loads(text)
-        raw_variations = data["variations"]
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
-        raise GeneratorError("Could not parse the model's response.") from exc
+        data = generate_json(
+            choice,
+            system=_system_prompt(brand),
+            user=_user_prompt(req, brand),
+            schema=_AD_SCHEMA,
+            effort=settings.effort,
+        )
+    except ProviderError as exc:
+        raise _as_generator_error(exc) from exc
+
+    raw_variations = data.get("variations") if isinstance(data, dict) else None
+    if not isinstance(raw_variations, list):
+        raise GeneratorError("The model's response was missing variations.")
 
     variations = [AdVariation(**v) for v in raw_variations][: req.count]
     if not variations:
@@ -204,7 +189,9 @@ def generate_ads(req: GenerateRequest) -> GenerateResponse:
     )
 
 
-def generate_bulk(req: BulkGenerateRequest) -> BulkGenerateResponse:
+def generate_bulk(
+    req: BulkGenerateRequest, choice: ProviderChoice | None = None
+) -> BulkGenerateResponse:
     """Generate ads for every offer in `req.products`.
 
     Offers run concurrently; one failing offer is captured as an `error` on its
@@ -213,6 +200,14 @@ def generate_bulk(req: BulkGenerateRequest) -> BulkGenerateResponse:
     brand = get_brand(req.brand)
     if brand is None:
         raise GeneratorError(f"Unknown brand '{req.brand}'.")
+
+    if choice is None:
+        choice = resolve_choice()
+    if choice is None:
+        raise GeneratorError(
+            "No AI provider is configured. Add an Anthropic (Claude) or OpenAI "
+            "API key on the Settings screen."
+        )
 
     # Skip blank lines, keep order, de-dupe accidental repeats.
     seen: set[str] = set()
@@ -237,7 +232,7 @@ def generate_bulk(req: BulkGenerateRequest) -> BulkGenerateResponse:
             count=req.count,
         )
         try:
-            result = generate_ads(single)
+            result = generate_ads(single, choice)
             return BulkResultItem(product=product, variations=result.variations)
         except GeneratorError as exc:
             return BulkResultItem(product=product, error=str(exc))

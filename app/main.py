@@ -13,13 +13,15 @@ import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 
+from .ai_providers import available_providers, resolve_choice
 from .brands import list_brands
 from .config import get_settings
-from .db import init_db
+from .db import get_db, init_db
 from .generator import GeneratorError, generate_ads, generate_bulk
 from .models import (
     BulkGenerateRequest,
@@ -50,7 +52,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Modpools Ad Manager", version="1.2.0", lifespan=lifespan)
+app = FastAPI(title="Modpools Ad Manager", version="1.3.0", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -77,13 +79,16 @@ async def password_gate(request: Request, call_next):
 
 
 @app.get("/api/health")
-def health() -> dict:
+def health(db: Session = Depends(get_db)) -> dict:
     settings = get_settings()
+    providers = available_providers(db)
     return {
         "status": "ok",
         "model": settings.model,
         "effort": settings.effort,
-        "api_key_configured": settings.api_key_configured,
+        # True if any provider (Claude or OpenAI, via env or the dashboard) is set.
+        "api_key_configured": bool(providers),
+        "ai_providers": providers,
     }
 
 
@@ -102,30 +107,32 @@ def brands() -> dict:
     }
 
 
+_NO_PROVIDER = (
+    "No AI provider is configured. Open Settings and add an Anthropic (Claude) "
+    "or OpenAI API key — whichever you can fund."
+)
+
+
 @app.post("/api/generate", response_model=GenerateResponse)
-def generate(req: GenerateRequest) -> GenerateResponse:
-    settings = get_settings()
-    if not settings.api_key_configured:
-        raise HTTPException(
-            status_code=503,
-            detail="ANTHROPIC_API_KEY is not configured. Add it to your .env file.",
-        )
+def generate(req: GenerateRequest, db: Session = Depends(get_db)) -> GenerateResponse:
+    choice = resolve_choice(db)
+    if choice is None:
+        raise HTTPException(status_code=503, detail=_NO_PROVIDER)
     try:
-        return generate_ads(req)
+        return generate_ads(req, choice)
     except GeneratorError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/api/generate/bulk", response_model=BulkGenerateResponse)
-def generate_bulk_route(req: BulkGenerateRequest) -> BulkGenerateResponse:
-    settings = get_settings()
-    if not settings.api_key_configured:
-        raise HTTPException(
-            status_code=503,
-            detail="ANTHROPIC_API_KEY is not configured. Add it to your .env file.",
-        )
+def generate_bulk_route(
+    req: BulkGenerateRequest, db: Session = Depends(get_db)
+) -> BulkGenerateResponse:
+    choice = resolve_choice(db)
+    if choice is None:
+        raise HTTPException(status_code=503, detail=_NO_PROVIDER)
     try:
-        return generate_bulk(req)
+        return generate_bulk(req, choice)
     except GeneratorError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
