@@ -7,13 +7,16 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from ..ai_providers import openai_key
 from ..audit import log_action
 from ..auth import get_current_user, require_roles
+from ..brands import get_brand
 from ..db import get_db
-from ..db_models import Ad, Campaign, User
+from ..db_models import Ad, Campaign, Creative, User
 from ..enums import SUBMITTABLE, AdStatus, Role
+from ..image_gen import ImageError, build_image_prompt, generate_image, size_for
 from ..models import Platform
-from ..schemas import AdCreate, AdOut, AdUpdate
+from ..schemas import AdCreate, AdOut, AdUpdate, CreativeOut, GenerateImageRequest
 
 router = APIRouter(prefix="/api/ads", tags=["ads"])
 
@@ -107,6 +110,48 @@ def update_ad(
     db.commit()
     db.refresh(ad)
     return ad
+
+
+@router.post("/{ad_id}/generate-image", response_model=CreativeOut, status_code=201)
+def generate_ad_image(
+    ad_id: int,
+    body: GenerateImageRequest | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*_EDITORS)),
+) -> Creative:
+    """Generate a real photo for this ad from its visual concept, save it to the
+    Creative Library, and return it. Photo generation is OpenAI-only."""
+    ad = _get_ad(db, ad_id)
+    key = openai_key(db)
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="Photo generation needs an OpenAI key. Add one in Settings.",
+        )
+    campaign = db.get(Campaign, ad.campaign_id)
+    brand = get_brand(campaign.brand if campaign else "modpools") or get_brand("modpools")
+    prompt = build_image_prompt(
+        brand, visual_concept=ad.visual_concept, headline=ad.headline,
+        offer=(campaign.offer if campaign else None),
+    )
+    size = size_for(ad.platform, (body.size if body else None))
+    try:
+        data_uri = generate_image(key, prompt=prompt, size=size)
+    except ImageError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    creative = Creative(
+        type="image", name=f"AI photo · {ad.headline[:60]}", url=data_uri,
+        body=None, tags=["ai-generated", ad.platform, f"ad-{ad.id}"],
+        aspect_ratio=size, created_by=user.email,
+    )
+    db.add(creative)
+    db.flush()
+    log_action(db, user=user, action="ad.generate_image", entity_type="ad",
+               entity_id=ad.id, detail={"creative_id": creative.id, "size": size})
+    db.commit()
+    db.refresh(creative)
+    return creative
 
 
 @router.post("/{ad_id}/submit", response_model=AdOut)

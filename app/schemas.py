@@ -93,6 +93,13 @@ class SaveGeneratedAdsRequest(BaseModel):
     variations: list[AdVariation] = Field(..., min_length=1, max_length=25)
 
 
+class GenerateImageRequest(BaseModel):
+    """Optional overrides for AI photo generation. Size defaults to the ad's
+    platform aspect (square for feeds, vertical for TikTok/Shorts)."""
+
+    size: str | None = None   # 1024x1024 | 1024x1536 | 1536x1024
+
+
 class AdOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

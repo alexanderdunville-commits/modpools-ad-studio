@@ -353,8 +353,9 @@
         let attachBtn="";
         if(editable&&needsVideo) attachBtn=`<button class="btn ghost sm" data-media="${a.id}" data-cur="${esc(a.media_ref||"")}" data-plat="${a.platform}" data-kind="video">🎬 ${a.media_ref?"Change":"Attach"} video</button> `;
         else if(editable&&(needsImage||optImage)) attachBtn=`<button class="btn ghost sm" data-media="${a.id}" data-cur="${esc(a.media_ref||"")}" data-plat="${a.platform}" data-kind="image">🖼 ${a.media_ref?"Change":"Attach"} image</button> `;
+        const genImgBtn = editable ? `<button class="btn ghost sm" data-genimg="${a.id}">🎨 Generate photo</button> ` : "";
         return `<tr><td>${esc(a.headline)}</td><td>${esc(platLabel(a.platform))}${media}</td><td>${pill(a.status)}</td>
-        <td style="text-align:right">${attachBtn}${["draft","changes_requested","rejected"].includes(a.status)?`<button class="btn ghost sm" data-submit="${a.id}">Submit for approval</button>`:""}</td></tr>`; }).join("")+`</tbody></table>`
+        <td style="text-align:right">${genImgBtn}${attachBtn}${["draft","changes_requested","rejected"].includes(a.status)?`<button class="btn ghost sm" data-submit="${a.id}">Submit for approval</button>`:""}</td></tr>`; }).join("")+`</tbody></table>`
       :`<div class="empty">No ads yet. Generate some in <b>Create Ads</b> and save them here.</div>`)+`</div>`;
     const MEDIA_HELP={ tiktok:["Attach TikTok video","TikTok in-feed ads must have a video. Upload it in <b>TikTok Ads Manager → Assets → Videos</b> and paste its <b>video ID</b>.","TikTok video ID","v10033g50000..."],
       youtube:["Attach YouTube video","YouTube ads need a video. Upload it to YouTube and paste its <b>video ID / asset</b> here.","YouTube video ID","dQw4w9WgXcQ"],
@@ -367,6 +368,16 @@
        <label>${h[2]}</label><input name="media_ref" value="${esc(b.dataset.cur||"")}" placeholder="${esc(h[3])}"/>`,
       async(bg,close)=>{ await api(`/api/ads/${b.dataset.media}`,{method:"PATCH",body:{media_ref:val(bg,"media_ref")||null}});
         toast("Media attached.","ok"); close(); openCampaign(id); }); });
+    document.querySelectorAll("[data-genimg]").forEach(b=>b.onclick=async()=>{
+      const orig=b.textContent; b.disabled=true; b.textContent="🎨 Generating… (~20s)";
+      try{ const cr=await api(`/api/ads/${b.dataset.genimg}/generate-image`,{method:"POST",body:{}});
+        modal("AI-generated photo",
+          `<p class="sub" style="margin-top:0">Saved to your <b>Creative Library</b>. Download it, then upload it to the ad platform to get the image ID for this ad.</p>
+           <img src="${cr.url}" alt="ad photo" style="width:100%;border-radius:10px;border:1px solid var(--line)"/>
+           <div class="muted" style="font-size:12px;margin-top:6px">${esc(cr.aspect_ratio||"")} · AI-generated. Review before use — no text is baked in on purpose.</div>`,
+          async(bg,close)=>{ const a=document.createElement("a"); a.href=cr.url; a.download=`modpools-ad-${b.dataset.genimg}.png`; a.click(); close(); }, "Download");
+      }catch(e){ toast(e.message,"err"); }
+      finally{ b.disabled=false; b.textContent=orig; } });
     document.querySelectorAll("[data-submit]").forEach(b=>b.onclick=async()=>{ try{ await api(`/api/ads/${b.dataset.submit}/submit`,{method:"POST"}); toast("Sent to approval queue.","ok"); openCampaign(id); refreshChrome(); }catch(e){toast(e.message,"err");} });
   }
 
@@ -569,7 +580,7 @@
         ${provRow("openai","OpenAI (GPT)","Easiest to fund if Anthropic billing won’t work for you. Buy credits at platform.openai.com.","https://platform.openai.com/api-keys")}
       </div>
       <div class="card" style="margin-top:16px"><h3 style="margin-top:0">How keys are chosen</h3>
-        <p class="muted">If both keys are set, <b>Claude is used first</b> and OpenAI is the automatic fallback. Setting a key here takes effect right away — no redeploy needed.</p></div>`;
+        <p class="muted">A key you set <b>here</b> always wins over one left in the server environment, and if one provider errors the other is tried automatically. Setting a key takes effect right away — no redeploy needed. <b>Photo generation</b> uses OpenAI, so add an OpenAI key to generate ad images.</p></div>`;
     document.querySelectorAll("[data-savekey]").forEach(b=>b.onclick=async()=>{
       const p=b.dataset.savekey; const inp=document.querySelector(`[name=key_${p}]`); const value=inp.value.trim();
       if(!value){ toast("Paste a key first.","err"); return; }
@@ -620,7 +631,8 @@
     if(!items.length) h += `<div class="empty">Nothing in the library yet.</div>`;
     else h += `<div class="cardgrid">`+items.map(c=>`<div class="vcard"><h4>${esc(c.name)} ${c.approved?`<span class="pill approved" style="font-size:11px">approved</span>`:""}</h4>
       <div class="row" style="gap:6px;margin:4px 0"><span class="pill">${esc((CREATIVE_TYPES.find(t=>t[0]===c.type)||[c.type,c.type])[1])}</span></div>
-      ${c.url?`<div class="field"><div class="fk">Asset</div><div class="fv"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url)}</a></div></div>`:""}
+      ${c.url&&(c.type==="image"||c.url.startsWith("data:image"))?`<img src="${esc(c.url)}" alt="${esc(c.name)}" style="width:100%;border-radius:8px;border:1px solid var(--line);margin:6px 0"/><a href="${esc(c.url)}" download="creative-${c.id}.png" class="btn ghost sm" style="margin-bottom:4px">⤓ Download</a>`
+        :c.url?`<div class="field"><div class="fk">Asset</div><div class="fv"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url).slice(0,60)}</a></div></div>`:""}
       ${c.body?`<div class="field"><div class="fv">${esc(c.body)}</div></div>`:""}
       ${(c.tags&&c.tags.length)?`<div class="tags">${c.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`:""}
       ${edit?`<div class="row" style="gap:8px;margin-top:10px">${c.approved?"":`<button class="btn good sm" data-ca="${c.id}">Approve</button>`}<button class="btn ghost sm" data-dc="${c.id}">Delete</button></div>`:""}</div>`).join("")+`</div>`;

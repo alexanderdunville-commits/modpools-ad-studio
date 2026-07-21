@@ -115,6 +115,12 @@ def resolve_choice(db: "Session | None" = None) -> ProviderChoice | None:
     return choices[0] if choices else None
 
 
+def openai_key(db: "Session | None" = None) -> str | None:
+    """The OpenAI key specifically (image generation is OpenAI-only), dashboard
+    key first then environment."""
+    return _resolve_key("openai", _db_keys(db))
+
+
 def available_providers(db: "Session | None" = None) -> list[str]:
     db_keys = _db_keys(db)
     return [p for p in _PROVIDER_ORDER if _resolve_key(p, db_keys)]
