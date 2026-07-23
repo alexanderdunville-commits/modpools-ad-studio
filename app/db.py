@@ -56,6 +56,7 @@ def init_db() -> None:
 # tables, so add them here; the ALTER fails harmlessly when the column exists.
 _NEW_COLUMNS = [
     ("ads", "media_ref", "VARCHAR(200)"),
+    ("ads", "creative_id", "INTEGER"),
     ("platform_connections", "config", "JSON"),
 ]
 

@@ -23,6 +23,7 @@ from ..schemas import (
     AdCreate,
     AdOut,
     AdUpdate,
+    ComposePost,
     CreativeOut,
     GenerateImageRequest,
     GenerateVideoRequest,
@@ -126,6 +127,57 @@ def update_ad(
         setattr(ad, key, value)
     log_action(db, user=user, action="ad.update", entity_type="ad",
                entity_id=ad.id, detail={"fields": list(changes)})
+    db.commit()
+    db.refresh(ad)
+    return ad
+
+
+@router.post("/compose", response_model=AdOut, status_code=201)
+def compose_post(
+    body: ComposePost,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*_EDITORS)),
+) -> Ad:
+    """New Post composer — the user's own photo/video + description + hashtags
+    becomes a draft ad in a campaign; it then flows through the normal
+    review → schedule → post pipeline like any other ad."""
+    if db.get(Campaign, body.campaign_id) is None:
+        raise HTTPException(status_code=404, detail="Campaign not found.")
+    if body.creative_id is not None:
+        creative = db.get(Creative, body.creative_id)
+        if creative is None:
+            raise HTTPException(status_code=404, detail="Attached media not found.")
+        if creative.type not in ("image", "video"):
+            raise HTTPException(
+                status_code=400, detail="Attached creative must be a photo or video."
+            )
+    # A headline is required by the pipeline; default to the first line of the
+    # description when the user doesn't write one.
+    headline = (body.headline or "").strip()
+    if not headline:
+        headline = body.description.strip().splitlines()[0][:100]
+    hashtags = [t if t.startswith("#") else f"#{t}"
+                for t in (h.strip() for h in body.hashtags) if t]
+    ad = Ad(
+        campaign_id=body.campaign_id,
+        platform=body.platform.value,
+        headline=headline,
+        primary_text=body.description.strip(),
+        description=headline,
+        call_to_action=(body.call_to_action or "Learn more").strip(),
+        hashtags=hashtags,
+        visual_concept="User-provided media (see attached creative).",
+        media_ref=(body.media_ref or None),
+        creative_id=body.creative_id,
+        status=(AdStatus.pending.value if body.submit else AdStatus.draft.value),
+        generated_by_ai=False,
+        created_by=user.email,
+    )
+    db.add(ad)
+    db.flush()
+    log_action(db, user=user, action="ad.compose", entity_type="ad", entity_id=ad.id,
+               detail={"platform": ad.platform, "creative_id": body.creative_id,
+                       "submitted": body.submit})
     db.commit()
     db.refresh(ad)
     return ad

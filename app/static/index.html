@@ -158,7 +158,7 @@
   const CREATIVE_TYPES = [["image","Image"],["video","Video"],["before_after","Before / after"],["testimonial","Testimonial"],["headline","Headline"],["caption","Caption"],["cta","CTA"]];
 
   const NAV_MAIN = [
-    ["dashboard","▦","Dashboard"], ["create","✎","Create Ads"], ["campaigns","▤","Campaigns"],
+    ["dashboard","▦","Dashboard"], ["create","✎","Create Ads"], ["compose","✚","New Post"], ["campaigns","▤","Campaigns"],
     ["approvals","✓","Approvals"], ["calendar","▣","Ad Calendar"],
     ["audiences","◎","Audiences"], ["creatives","▧","Creative Library"], ["analytics","📈","Analytics"],
   ];
@@ -347,7 +347,8 @@
         const optImage=["facebook","instagram"].includes(a.platform);
         const needsImage=(a.platform==="google_display");
         let media="";
-        if(needsVideo) media = a.media_ref?` <span class="pill" title="Video attached">🎬 video</span>`:` <span class="pill" style="opacity:.6" title="Video ads need a video before live posting">no video</span>`;
+        if(a.creative_id) media = ` <span class="pill" title="Your uploaded photo/video posts with this ad">📎 own media</span>`;
+        else if(needsVideo) media = a.media_ref?` <span class="pill" title="Video attached">🎬 video</span>`:` <span class="pill" style="opacity:.6" title="Video ads need a video before live posting">no video</span>`;
         else if(needsImage) media = a.media_ref?` <span class="pill" title="Image asset attached">🖼 image</span>`:` <span class="pill" style="opacity:.6" title="Display ads need an image before live posting">no image</span>`;
         else if(optImage&&a.media_ref) media = ` <span class="pill" title="Meta image attached">🖼 image</span>`;
         let attachBtn="";
@@ -587,6 +588,74 @@
         toast(`Connected: ${r.account?.name||"account"} (${r.account?.currency||""} ${r.account?.status||"ok"})`,"ok"); render(); }
       catch(e){ toast(e.message,"err"); b.disabled=false; b.textContent="Test connection"; } });
     document.querySelectorAll("[data-disc]").forEach(b=>b.onclick=async()=>{ await api(`/api/connections/${b.dataset.disc}`,{method:"DELETE"}); toast("Disconnected.","ok"); render(); });
+  };
+
+  V.compose = async () => {
+    const [camps, creatives] = await Promise.all([
+      api("/api/campaigns"), api("/api/creatives")
+    ]);
+    const media = creatives.filter(c=>(c.type==="image"||c.type==="video")&&c.url);
+    if(!canEdit()){ $("view").innerHTML=`<div class="empty">Your role can't create posts.</div>`; return; }
+    $("view").innerHTML = `<p class="sub">Post <b>your own</b> photo or video. Upload it, write the caption (or let AI write it), pick where it goes — it lands as a draft for review, then schedules and posts with your media, description, and hashtags.</p>
+      <div class="grid2" style="align-items:start;gap:18px">
+        <div class="card">
+          <h3 style="margin-top:0">1 · Your photo / video</h3>
+          <input type="file" id="cFile" accept="image/*,video/*" style="margin-bottom:8px"/>
+          <div id="cPreview" class="muted" style="margin:8px 0">No file chosen yet.</div>
+          ${media.length?`<label>…or reuse from your Creative Library</label>
+          <select id="cLib"><option value="">— pick existing media —</option>${media.map(c=>`<option value="${c.id}">${esc(c.name)} (${c.type})</option>`).join("")}</select>`:""}
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">2 · The post</h3>
+          <label>Campaign</label><select id="cCamp">${camps.length?camps.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join(""):`<option value="">(create a campaign first)</option>`}</select>
+          <label>Platform</label><select id="cPlat">${opts(PLATFORMS)}</select>
+          <label>Description / caption</label><textarea id="cDesc" rows="4" placeholder="Write the caption that will run with your photo/video…"></textarea>
+          <div class="row" style="gap:8px;margin:4px 0 8px"><button class="btn ghost sm" id="cAI">✨ Polish with AI</button><span class="muted" style="font-size:12px">writes caption + hashtags from what you typed</span></div>
+          <label>Hashtags <span class="muted">(space or comma separated)</span></label><input id="cTags" placeholder="#modpools #backyardpool"/>
+          <div class="grid2"><div><label>Headline <span class="muted">(optional)</span></label><input id="cHead" maxlength="100"/></div>
+          <div><label>Call to action</label><input id="cCTA" value="Learn more"/></div></div>
+          <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="cSubmit" style="width:auto"/> Send straight to the approval queue</label>
+          <button class="btn" id="cPost" style="margin-top:12px">Create post</button>
+        </div>
+      </div>`;
+    let uploadedDataUri=null, uploadedName=null;
+    $("cFile").onchange = () => {
+      const f=$("cFile").files[0]; if(!f) return;
+      if(f.size > 24*1024*1024){ toast("File too large — keep it under 24 MB.","err"); $("cFile").value=""; return; }
+      const rd=new FileReader();
+      rd.onload=()=>{ uploadedDataUri=rd.result; uploadedName=f.name;
+        $("cPreview").innerHTML = f.type.startsWith("video/")
+          ? `<video src="${uploadedDataUri}" controls muted style="width:100%;border-radius:8px"></video>`
+          : `<img src="${uploadedDataUri}" style="width:100%;border-radius:8px"/>`;
+        if($("cLib")) $("cLib").value=""; };
+      rd.readAsDataURL(f);
+    };
+    if($("cLib")) $("cLib").onchange=()=>{ const c=media.find(x=>String(x.id)===$("cLib").value);
+      if(c){ uploadedDataUri=null; uploadedName=null; $("cFile").value="";
+        $("cPreview").innerHTML = c.type==="video" ? `<video src="${c.url}" controls muted style="width:100%;border-radius:8px"></video>` : `<img src="${c.url}" style="width:100%;border-radius:8px"/>`; } };
+    $("cAI").onclick = async () => {
+      const seed=$("cDesc").value.trim(); if(seed.length<3){ toast("Type a rough description first — AI will polish it.","err"); return; }
+      $("cAI").disabled=true; $("cAI").textContent="✨ Writing…";
+      try{ const r=await api("/api/generate",{method:"POST",body:{brand:"modpools",platform:$("cPlat").value,product:seed,goal:"engagement",count:1}});
+        const v=r.variations[0]; $("cDesc").value=v.primary_text; if(!$("cHead").value) $("cHead").value=v.headline;
+        $("cTags").value=(v.hashtags||[]).join(" "); $("cCTA").value=v.call_to_action||$("cCTA").value;
+        toast("Caption written — edit as you like.","ok");
+      }catch(e){ toast(e.message,"err"); }
+      finally{ $("cAI").disabled=false; $("cAI").textContent="✨ Polish with AI"; } };
+    $("cPost").onclick = async () => {
+      const cid=$("cCamp").value; if(!cid){ toast("Create a campaign first (Campaigns → + New campaign).","err"); return; }
+      const desc=$("cDesc").value.trim(); if(desc.length<3){ toast("Write a description for the post.","err"); return; }
+      $("cPost").disabled=true; $("cPost").textContent="Creating…";
+      try{
+        let creativeId=null;
+        if(uploadedDataUri){ const cr=await api("/api/creatives/upload",{method:"POST",body:{name:uploadedName||"My upload",data_uri:uploadedDataUri}}); creativeId=cr.id; }
+        else if($("cLib")&&$("cLib").value){ creativeId=parseInt($("cLib").value,10); }
+        const tags=$("cTags").value.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
+        const ad=await api("/api/ads/compose",{method:"POST",body:{campaign_id:parseInt(cid,10),platform:$("cPlat").value,description:desc,headline:$("cHead").value.trim()||null,hashtags:tags,call_to_action:$("cCTA").value.trim()||null,creative_id:creativeId,submit:$("cSubmit").checked}});
+        toast($("cSubmit").checked?`Post created and sent for approval (ad #${ad.id}).`:`Post created as a draft (ad #${ad.id}).`,"ok");
+        refreshChrome(); go("campaigns");
+      }catch(e){ toast(e.message,"err"); }
+      finally{ $("cPost").disabled=false; $("cPost").textContent="Create post"; } };
   };
 
   V.settings = async () => {

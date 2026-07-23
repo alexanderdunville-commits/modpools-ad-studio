@@ -20,6 +20,7 @@ from ..schemas import (
     AudienceOut,
     CreativeCreate,
     CreativeOut,
+    CreativeUpload,
 )
 
 router = APIRouter(prefix="/api", tags=["library"])
@@ -66,6 +67,36 @@ def delete_audience(
 
 
 # ---- Creatives ----
+@router.post("/creatives/upload", response_model=CreativeOut, status_code=201)
+def upload_creative(
+    body: CreativeUpload,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*_EDITORS)),
+) -> Creative:
+    """Upload the user's own photo/video (sent as a data URI) into the library.
+    Stored in the database so it survives restarts and can be posted later."""
+    if body.data_uri.startswith("data:image/"):
+        kind = "image"
+    elif body.data_uri.startswith("data:video/"):
+        kind = "video"
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Only image or video files can be uploaded here.",
+        )
+    creative = Creative(
+        type=kind, name=body.name, url=body.data_uri,
+        tags=(body.tags or []) + ["uploaded"], created_by=user.email,
+    )
+    db.add(creative)
+    db.flush()
+    log_action(db, user=user, action="creative.upload", entity_type="creative",
+               entity_id=creative.id, detail={"type": kind, "name": body.name})
+    db.commit()
+    db.refresh(creative)
+    return creative
+
+
 @router.post("/creatives", response_model=CreativeOut, status_code=201)
 def create_creative(
     body: CreativeCreate,

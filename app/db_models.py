@@ -78,6 +78,10 @@ class Ad(Base):
     # Platform media asset reference — for TikTok this is the video_id from the
     # advertiser's asset library (in-feed TikTok ads must have a video).
     media_ref: Mapped[str | None] = mapped_column(String(200), default=None)
+    # Uploaded media attached from the Creative Library (user's own photo/video,
+    # stored as a data URI on the creative). At publish time the poster uploads
+    # the file to the platform when no media_ref is set.
+    creative_id: Mapped[int | None] = mapped_column(default=None)
     status: Mapped[str] = mapped_column(String(50), default=AdStatus.draft.value)
     generated_by_ai: Mapped[bool] = mapped_column(default=False)
     created_by: Mapped[str | None] = mapped_column(String(320), default=None)

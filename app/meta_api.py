@@ -128,8 +128,21 @@ class MetaLiveAdapter(PublishingAdapter):
             raise PublishError(f"Meta connection is missing '{key}'. {hint}")
         return value
 
+    def _upload_image(self, data: bytes) -> str:
+        """Upload raw image bytes to the ad account's image library and return
+        the image hash."""
+        import base64
+
+        result = self._call("POST", f"/{self._account}/adimages", {
+            "bytes": base64.b64encode(data).decode(),
+        })
+        for info in (result.get("images") or {}).values():
+            if info.get("hash"):
+                return info["hash"]
+        raise PublishError("Meta did not return an image hash for the upload.")
+
     # ------------------------------------------------------------- interface
-    def publish(self, ad: "Ad") -> PublishResult:
+    def publish(self, ad: "Ad", media: tuple[bytes, str] | None = None) -> PublishResult:
         page_id = self._require(
             "page_id",
             "Set the Facebook Page ID the ads publish from in the connection "
@@ -144,8 +157,14 @@ class MetaLiveAdapter(PublishingAdapter):
             self._config.get("landing_page_url") or "https://modpools.com"
         ).strip()
 
+        # Hashtags ride along in the message body on Meta.
+        message = ad.primary_text or ad.headline
+        tags = " ".join(t for t in (ad.hashtags or []) if t)
+        if tags:
+            message = f"{message}\n\n{tags}"
+
         link_data: dict[str, Any] = {
-            "message": ad.primary_text or ad.headline,
+            "message": message,
             "link": landing,
             "name": ad.headline,
             "description": ad.description or "",
@@ -155,6 +174,16 @@ class MetaLiveAdapter(PublishingAdapter):
             },
         }
         image_hash = (getattr(ad, "media_ref", None) or "").strip()
+        if not image_hash and media is not None:
+            data, mime = media
+            if mime.startswith("image/"):
+                image_hash = self._upload_image(data)
+            elif mime.startswith("video/"):
+                raise PublishError(
+                    "Direct video upload to Meta isn't wired yet — upload the "
+                    "video in Meta Ads Manager and paste its ID into the ad's "
+                    "Media ID field, or attach a photo instead."
+                )
         if image_hash:
             link_data["image_hash"] = image_hash
 

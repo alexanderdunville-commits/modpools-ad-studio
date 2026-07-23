@@ -35,12 +35,29 @@ class PublishResult:
     external_url: str | None = None
 
 
+def data_uri_to_bytes(uri: str) -> tuple[bytes, str] | None:
+    """Decode a ``data:<mime>;base64,<payload>`` URI to (bytes, mime)."""
+    import base64
+
+    if not uri or not uri.startswith("data:"):
+        return None
+    try:
+        header, payload = uri.split(",", 1)
+        mime = header[5:].split(";", 1)[0] or "application/octet-stream"
+        return base64.b64decode(payload), mime
+    except (ValueError, TypeError):
+        return None
+
+
 class PublishingAdapter(ABC):
     """Common interface every ad-platform adapter implements."""
 
     @abstractmethod
-    def publish(self, ad: "Ad") -> PublishResult:
-        """Create the ad on the platform. Returns the external post id."""
+    def publish(self, ad: "Ad", media: tuple[bytes, str] | None = None) -> PublishResult:
+        """Create the ad on the platform. ``media`` is the user's uploaded file
+        (bytes, mime) when the ad has an attached creative — adapters that
+        support direct upload push it to the platform; ``ad.media_ref`` (a
+        platform asset id) always wins when set. Returns the external post id."""
 
     @abstractmethod
     def pause(self, external_post_id: str) -> bool:
@@ -54,7 +71,7 @@ class PublishingAdapter(ABC):
 class MockAdapter(PublishingAdapter):
     """Sandbox adapter — simulates posting/pausing. No real spend, no network."""
 
-    def publish(self, ad: "Ad") -> PublishResult:
+    def publish(self, ad: "Ad", media: tuple[bytes, str] | None = None) -> PublishResult:
         ext = f"mock_{ad.platform}_{ad.id}_{uuid.uuid4().hex[:8]}"
         return PublishResult(external_post_id=ext, external_url=f"https://sandbox.local/{ext}")
 
@@ -71,7 +88,7 @@ class _RealAdapterStub(PublishingAdapter):
     api_name = "the platform"
     docs_url = ""
 
-    def publish(self, ad: "Ad") -> PublishResult:
+    def publish(self, ad: "Ad", media: tuple[bytes, str] | None = None) -> PublishResult:
         raise NotImplementedError(
             f"Live posting for this platform is not implemented yet. Implement "
             f"against {self.api_name} ({self.docs_url}). Until then, keep the "

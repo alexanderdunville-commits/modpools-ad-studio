@@ -25,6 +25,7 @@ from .db_models import (
     AutoPauseRule,
     BlackoutDate,
     Budget,
+    Creative,
     Limit,
     Metric,
     Notification,
@@ -42,7 +43,7 @@ from .enums import (
     LimitMetric,
     ScheduleStatus,
 )
-from .publishing import PublishError, get_adapter
+from .publishing import PublishError, data_uri_to_bytes, get_adapter
 
 
 # ---------------------------------------------------------------- helpers
@@ -76,6 +77,17 @@ def _adapter_for(db: Session, platform: str):
     conn = _connection(db, platform)
     mode = conn.mode if conn else ConnectionMode.sandbox.value
     return get_adapter(platform, mode, connection=conn)
+
+
+def _attached_media(db: Session, ad: Ad) -> tuple[bytes, str] | None:
+    """The user's uploaded photo/video for this ad (bytes, mime), if any."""
+    creative_id = getattr(ad, "creative_id", None)
+    if not creative_id:
+        return None
+    creative = db.get(Creative, creative_id)
+    if creative is None or not creative.url:
+        return None
+    return data_uri_to_bytes(creative.url)
 
 
 def effective_limit(db: Session, metric: LimitMetric, *,
@@ -249,7 +261,7 @@ def run_poster(db: Session, *, now: datetime | None = None) -> dict:
             continue
         try:
             adapter = _adapter_for(db, ad.platform)
-            result = adapter.publish(ad)
+            result = adapter.publish(ad, media=_attached_media(db, ad))
             sched.status = ScheduleStatus.posted.value
             sched.posted_at = now
             sched.external_post_id = result.external_post_id

@@ -248,7 +248,10 @@ class GoogleAdsLiveAdapter(PublishingAdapter):
             },
         }
 
-    def publish(self, ad: "Ad") -> PublishResult:
+    def publish(self, ad: "Ad", media: tuple[bytes, str] | None = None) -> PublishResult:
+        # Google Ads media must be pre-uploaded as assets in the Google Ads
+        # account (asset resource names in ad.media_ref); raw uploads aren't
+        # wired yet, so `media` is unused here.
         final_url = str(self._config.get("landing_page_url") or "https://modpools.com").strip()
         payload = {
             "operations": [{

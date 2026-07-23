@@ -138,14 +138,60 @@ class TikTokLiveAdapter(PublishingAdapter):
             )
         return value
 
+    def _upload_video(self, data: bytes, mime: str) -> str:
+        """Upload a raw video file to the advertiser's asset library and return
+        its TikTok video_id."""
+        import hashlib
+
+        try:
+            with httpx.Client(timeout=180.0) as client:
+                resp = client.post(
+                    f"{_BASE}/file/video/ad/upload/",
+                    headers={"Access-Token": self._token},
+                    data={
+                        "advertiser_id": self._advertiser_id,
+                        "upload_type": "UPLOAD_BY_FILE",
+                        "video_signature": hashlib.md5(data).hexdigest(),
+                    },
+                    files={"video_file": ("ad-video.mp4", data, mime or "video/mp4")},
+                )
+        except httpx.HTTPError as exc:
+            raise PublishError(f"Could not upload the video to TikTok: {exc}") from exc
+        try:
+            body = resp.json()
+        except ValueError as exc:
+            raise PublishError(
+                f"TikTok upload returned a non-JSON response (HTTP {resp.status_code})."
+            ) from exc
+        if body.get("code") != 0:
+            raise PublishError(
+                f"TikTok video upload error {body.get('code')}: "
+                f"{body.get('message', 'unknown')}"
+            )
+        data_obj = body.get("data") or {}
+        rows = data_obj if isinstance(data_obj, list) else [data_obj]
+        for row in rows:
+            vid = (row or {}).get("video_id")
+            if vid:
+                return str(vid)
+        raise PublishError("TikTok accepted the video but returned no video_id.")
+
     # ------------------------------------------------------------- interface
-    def publish(self, ad: "Ad") -> PublishResult:
+    def publish(self, ad: "Ad", media: tuple[bytes, str] | None = None) -> PublishResult:
         video_id = (getattr(ad, "media_ref", None) or "").strip()
+        if not video_id and media is not None:
+            data, mime = media
+            if not mime.startswith("video/"):
+                raise PublishError(
+                    "TikTok in-feed ads must be a video — the attached file is "
+                    f"'{mime}'. Attach a video instead."
+                )
+            video_id = self._upload_video(data, mime)
         if not video_id:
             raise PublishError(
-                "This ad has no TikTok video attached. Upload the video to "
-                "your TikTok asset library, then paste its video ID into the "
-                "ad's Video/Media ID field."
+                "This ad has no TikTok video attached. Upload a video in the "
+                "New Post screen, or paste a TikTok video ID into the ad's "
+                "Video/Media ID field."
             )
         adgroup_id = self._require(
             "adgroup_id",

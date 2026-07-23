@@ -108,6 +108,30 @@ class GenerateVideoRequest(BaseModel):
     seconds: str | None = None   # 4 | 8 | 12
 
 
+class CreativeUpload(BaseModel):
+    """A user's own photo/video, sent as a data URI (the UI reads the chosen
+    file client-side). Capped to keep DB rows sane."""
+
+    name: str = Field(..., min_length=1, max_length=300)
+    data_uri: str = Field(..., min_length=30, max_length=34_000_000)  # ~25MB file
+    tags: list[str] = Field(default_factory=list)
+
+
+class ComposePost(BaseModel):
+    """The New Post composer: your own media + caption + hashtags → a draft ad
+    that flows through the normal review → schedule → post pipeline."""
+
+    campaign_id: int
+    platform: Platform
+    description: str = Field(..., min_length=3, max_length=5000)
+    headline: str | None = Field(None, max_length=200)
+    hashtags: list[str] = Field(default_factory=list)
+    call_to_action: str | None = Field(None, max_length=200)
+    creative_id: int | None = None   # uploaded/library media to post with
+    media_ref: str | None = None     # or a platform asset id, if they have one
+    submit: bool = False             # also send straight to the approval queue
+
+
 class AdOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -122,6 +146,7 @@ class AdOut(BaseModel):
     visual_concept: str
     rationale: str | None
     media_ref: str | None = None
+    creative_id: int | None = None
     status: str
     generated_by_ai: bool
     created_by: str | None

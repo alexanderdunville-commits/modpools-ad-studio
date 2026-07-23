@@ -92,7 +92,8 @@ class LinkedInLiveAdapter(PublishingAdapter):
         return value
 
     # ------------------------------------------------------------- interface
-    def publish(self, ad: "Ad") -> PublishResult:
+    def publish(self, ad: "Ad", media: tuple[bytes, str] | None = None) -> PublishResult:
+        # LinkedIn article ads are text+link; uploaded media isn't wired yet.
         org_id = self._require(
             "organization_id",
             "Set the LinkedIn organization (Page) ID that authors the ad.",
@@ -106,9 +107,13 @@ class LinkedInLiveAdapter(PublishingAdapter):
         org_urn = f"urn:li:organization:{org_id}"
 
         # 1) Create the sponsored post authored by the organization.
+        commentary = ad.primary_text or ad.headline
+        tags = " ".join(t for t in (ad.hashtags or []) if t)
+        if tags:
+            commentary = f"{commentary}\n\n{tags}"
         post_body = {
             "author": org_urn,
-            "commentary": ad.primary_text or ad.headline,
+            "commentary": commentary,
             "visibility": "PUBLIC",
             "distribution": {
                 "feedDistribution": "MAIN_FEED",
